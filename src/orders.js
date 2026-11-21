@@ -108,6 +108,17 @@ export class OrderDesk {
     return null;
   }
 
+  /**
+   * Cash on delivery's real cost is the parcel that comes back. H47 Pay tells the
+   * site when a cart was `returned` (set_order_status), so a phone with refused
+   * parcels behind it is flagged in the notes the shop reads in « Commandes web ».
+   * Flagged, never refused: the shop decides, on the phone.
+   */
+  returnsWarning(phone) {
+    const groups = new Set(this.storage.shopData().orders.filter((r) => r.phone === phone && r.status === 'returned').map((r) => r.order_group));
+    return groups.size ? `⚠ Client : ${groups.size} colis retourné${groups.size > 1 ? 's' : ''} auparavant` : '';
+  }
+
   deliveryOptions() {
     return this.storage.shopData().deliveryOptions;
   }
@@ -137,7 +148,7 @@ export class OrderDesk {
       // NewStore reads `city` as the two-digit wilaya code and prints « 16 — Alger » on the slip.
       city: String(order.wilaya).padStart(2, '0'),
       address: [order.commune, order.address].filter(Boolean).join(' — '),
-      notes: order.notes || null,
+      notes: [this.returnsWarning(order.phone), order.notes].filter(Boolean).join(' — ') || null,
       deliveryType: order.deliveryType,
       delivery: delivery ? { carrier: delivery.carrier, wilaya: order.wilaya } : undefined,
       lines: order.lines.map((l) => ({ externalId: l.externalId, quantity: l.quantity, color: l.color, size: l.size })),

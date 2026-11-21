@@ -199,3 +199,17 @@ test('11. the sync endpoint refuses a wrong key, in the contract\'s envelope', a
   expect(body.error).toBeTruthy();
   expect(typeof body.message).toBe('string');
 });
+
+test('12. a customer whose parcel came back orders again: H47 Pay sees the warning in the notes', async ({ page }) => {
+  // the Yalidine parcel of test 6 was refused at the door; H47 Pay records it
+  await shop().setOrderStatus(reference, 'returned');
+  await page.goto('/p/misbaha-ambre-33-grains-8');
+  await fillCustomer(page, { wilaya: 16, carrier: 'noest', option: 'home', commune: 'Hydra' });
+  await page.locator('input[name=notes]').fill('اتصلوا بعد الخامسة');
+  await page.locator('[data-submit]').click();
+  await page.waitForURL(/\/merci\//u);
+  const ref = (await page.locator('[data-order-ref]').textContent()).trim();
+  const [row] = (await allOrders()).filter((r) => r.order_group === ref);
+  expect(row.notes).toBe('⚠ Client : 1 colis retourné auparavant — اتصلوا بعد الخامسة');
+  expect(row.phone).toBe(CUSTOMER.normalized);
+});

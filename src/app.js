@@ -5,6 +5,7 @@
  * keeps only that projection (data/store.json + data/uploads) and never writes
  * stock: `@h47io/sync-receiver` enforces the contract.
  */
+import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
@@ -68,9 +69,17 @@ export function createApp(config) {
   const staticOptions = (defaultAge) => ({
     index: false,
     setHeaders(res, path) {
-      const versioned = res.req?.query?.v !== undefined || path.includes(`${join('public', 'fonts')}`) || path.includes(`${join('public', 'data')}`);
+      const versioned = res.req?.query?.v !== undefined || path.includes(`${join('public', 'data')}`);
       res.setHeader('Cache-Control', versioned ? `public, max-age=${YEAR}, immutable` : `public, max-age=${defaultAge}`);
     },
+  });
+  // fonts.css with every font URL versioned by content, so a changed font reaches returning visitors.
+  const fontsCss = readFileSync(join(PUBLIC, 'fonts', 'fonts.css'), 'utf8').replace(/url\(\/(fonts\/[^)?]+\.woff2)\)/gu, (_m, file) => `url(${assets.url(file)})`);
+  assets.register('fonts/fonts.css', fontsCss); // its version now changes whenever a font does
+  app.get('/fonts/fonts.css', (req, res) => {
+    res.type('text/css');
+    res.setHeader('Cache-Control', req.query.v ? `public, max-age=${YEAR}, immutable` : 'public, max-age=3600');
+    res.send(fontsCss);
   });
   app.use(express.static(PUBLIC, staticOptions(86_400)));
   app.get('/delivery-checkout.js', (req, res) => {

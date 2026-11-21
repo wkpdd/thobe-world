@@ -12,5 +12,10 @@ export function assetVersions(publicDir, extra = {}) {
     }
     return cache.get(path);
   };
-  return { url };
+  /** A file served from memory (rewritten or generated): versioned by what is actually sent. */
+  const register = (path, bytes) => {
+    extra[path] = bytes;
+    cache.delete(path);
+  };
+  return { url, register };
 }

@@ -46,7 +46,7 @@ ${noindex ? raw('<meta name="robots" content="noindex">') : ''}
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32.png">
 <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
-<link rel="preload" href="/fonts/Tajawal-400-${lang === 'fr' ? 'latin' : 'arabic'}.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="${assets.url(`fonts/Tajawal-400-${lang === 'fr' ? 'latin' : 'arabic'}.woff2`)}" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="${assets.url('fonts/fonts.css')}">
 <link rel="stylesheet" href="${assets.url('css/site.css')}">
 ${jsonLd ? html`<script type="application/ld+json">${jsonForScript(jsonLd)}</script>` : ''}
