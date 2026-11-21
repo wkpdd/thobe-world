@@ -1,0 +1,27 @@
+{
+  "name": "thobe-world",
+  "version": "1.0.0",
+  "private": true,
+  "description": "عالم الثوب · Thobe World — men's store (qamis, chèche, perfumes), managed entirely from H47 Pay (NewStore).",
+  "type": "module",
+  "engines": {
+    "node": ">=20.9.0"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "demo": "node scripts/demo.js",
+    "test": "npm run test:unit && npm run test:e2e",
+    "test:unit": "node --test test/unit/*.test.js",
+    "test:e2e": "playwright test --trace off"
+  },
+  "dependencies": {
+    "@h47io/sync-receiver": "1.3.0",
+    "compression": "1.8.2",
+    "express": "5.1.0",
+    "sharp": "0.35.5"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0"
+  }
+}

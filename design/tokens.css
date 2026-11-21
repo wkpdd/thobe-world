@@ -1,0 +1,42 @@
+/* WAQAR design tokens — "goldish white with a little beige", for men.
+   Contrast checked (WCAG): every TEXT pair below is >= 4.5:1.
+   --gold (#C9A45C) is 2.2:1 on ivory: decoration, borders, button FILLS with ink text only. */
+:root {
+  /* Surfaces */
+  --ivory:      #FBF8F2;  /* page background — warm white */
+  --pearl:      #FFFFFF;  /* cards, form fields */
+  --sand:       #EFE6D6;  /* beige sections, chips (ink 13.8:1, muted 4.8:1) */
+  --linen:      #E2D4BC;  /* deeper beige: dividers on sand, hover */
+  --hairline:   #E6DCCB;  /* 1px borders on ivory */
+
+  /* Gold */
+  --gold:       #C9A45C;  /* brand accent — fills, rules, stars, swatch ring */
+  --gold-soft:  #E9D9B4;  /* highlights, selected chip bg */
+  --gold-deep:  #8A6A2E;  /* gold TEXT and links (4.7:1 on ivory, 5.0:1 on white) */
+  --gold-grad:  linear-gradient(135deg, #D8B873 0%, #C9A45C 45%, #A9853F 100%);
+
+  /* Ink */
+  --ink:        #1F1B16;  /* text, primary CTA bg (16:1 on ivory) */
+  --ink-2:      #2E2922;  /* hover of ink */
+  --muted:      #6B6255;  /* secondary text (5.6:1 on ivory) */
+
+  /* States */
+  --success:    #3D6B4F;  /* in stock (5.8:1) */
+  --danger:     #9E3B2F;  /* low stock / errors (6.3:1) */
+
+  /* Type */
+  --font-ar-display: "Amiri", "Noto Naskh Arabic", serif;
+  --font-ar-body:    "Tajawal", "IBM Plex Sans Arabic", system-ui, sans-serif;
+  --font-lat-display:"Cormorant Garamond", Georgia, serif;
+  --font-lat-body:   "Manrope", system-ui, sans-serif;
+
+  /* Scale (mobile-first, 1.25 ratio) */
+  --fs-xs: .78rem; --fs-sm: .9rem; --fs-md: 1rem; --fs-lg: 1.25rem;
+  --fs-xl: 1.56rem; --fs-2xl: 1.95rem; --fs-3xl: 2.44rem;
+
+  /* Shape & depth */
+  --r-sm: 6px; --r-md: 12px; --r-lg: 20px; --r-pill: 999px;
+  --shadow-1: 0 1px 2px rgba(31,27,22,.06), 0 4px 14px rgba(31,27,22,.05);
+  --shadow-2: 0 10px 30px rgba(31,27,22,.10);
+  --space: 8px;  /* 8-pt grid */
+}
