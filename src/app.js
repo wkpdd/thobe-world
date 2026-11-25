@@ -20,6 +20,8 @@ import { OrderDesk, validateOrder } from './orders.js';
 import { homePage, listingPage, cartPage, checkoutPage, thanksPage, trackPage, staticPage, notFoundPage } from './views/pages.js';
 import { productPage } from './views/product.js';
 import { POLICIES } from './views/policies.js';
+import { SiteSettings } from './settings.js';
+import { adminRouter, adminCredentials } from './admin.js';
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const PUBLIC = join(ROOT, 'public');
@@ -43,6 +45,9 @@ export function createApp(config) {
     storage,
   });
   const desk = new OrderDesk({ storage, catalogue, secret: config.secret, limits: config.orders });
+  const settings = new SiteSettings({ dataDir: config.dataDir, config });
+  const credentials = adminCredentials(config);
+  if (credentials.generated) console.log(`Dashboard /admin: user « ${credentials.user} », password in ${credentials.generated}`);
   const assets = assetVersions(PUBLIC, { 'delivery-checkout.js': DELIVERY_CHECKOUT_JS });
 
   const app = express();
@@ -102,6 +107,12 @@ export function createApp(config) {
     }
   });
 
+  // The banner picture chosen in /admin (unique name per picture): a year.
+  app.use('/site', express.static(settings.mediaDir, { index: false, maxAge: YEAR * 1000, immutable: true }));
+
+  // The owner's dashboard for the home page texts and picture.
+  app.use('/admin', adminRouter({ config, settings, credentials }));
+
   // 3. Language: ?lang=fr|ar sets a cookie; Arabic by default.
   app.use((req, res, next) => {
     const asked = typeof req.query.lang === 'string' && LANGS.includes(req.query.lang) ? req.query.lang : null;
@@ -110,7 +121,7 @@ export function createApp(config) {
     if (asked && asked !== cookie) res.setHeader('Set-Cookie', `lang=${asked}; Path=/; Max-Age=31536000; SameSite=Lax`);
     const url = new URL(req.originalUrl, 'http://x');
     url.searchParams.delete('lang');
-    res.locals.ctx = { lang, config, assets, catalogue, path: `${url.pathname}${url.search}`, deliveryOptions: storage.shopData().deliveryOptions };
+    res.locals.ctx = { lang, config, assets, catalogue, path: `${url.pathname}${url.search}`, deliveryOptions: storage.shopData().deliveryOptions, settings: settings.get(), heroImage: settings.imageUrl() };
     res.setHeader('Vary', 'Cookie');
     next();
   });
@@ -248,7 +259,7 @@ export function createApp(config) {
 
   // 6. Search engines and health.
   app.get('/robots.txt', (_req, res) => {
-    res.type('text/plain').send(`User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /panier\nDisallow: /commande\nDisallow: /merci/\nSitemap: ${config.siteUrl}/sitemap.xml\n`);
+    res.type('text/plain').send(`User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /admin\nDisallow: /panier\nDisallow: /commande\nDisallow: /merci/\nSitemap: ${config.siteUrl}/sitemap.xml\n`);
   });
   app.get('/sitemap.xml', (_req, res) => {
     const snap = catalogue.snapshot();
@@ -277,6 +288,6 @@ export function createApp(config) {
     res.status(500).type('text/plain').send('Erreur interne. Réessayez dans un instant.');
   });
 
-  return { app, storage, catalogue, images, desk, receiver };
+  return { app, storage, catalogue, images, desk, receiver, settings, credentials };
 }
 

@@ -15,7 +15,7 @@ export const KEY = 'e2e-cle-de-synchronisation-0123456789abcdef';
 
 export default async function globalSetup() {
   const dataDir = mkdtempSync(join(tmpdir(), 'thobe-e2e-'));
-  const config = loadConfig({ PORT: String(PORT), NEWSTORE_SYNC_KEY: KEY, DATA_DIR: dataDir, SITE_URL: `http://127.0.0.1:${PORT}`, APP_SECRET: 'e2e-secret' });
+  const config = loadConfig({ PORT: String(PORT), NEWSTORE_SYNC_KEY: KEY, DATA_DIR: dataDir, SITE_URL: `http://127.0.0.1:${PORT}`, APP_SECRET: 'e2e-secret', ADMIN_USER: 'admin', ADMIN_PASSWORD: 'e2e-admin-password' });
   const { app, images } = createApp(config);
   const server = await new Promise((resolve) => {
     const s = app.listen(PORT, '127.0.0.1', () => resolve(s));

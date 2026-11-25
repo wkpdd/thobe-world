@@ -1,6 +1,7 @@
 import { html, raw, jsonForScript } from '../html.js';
 import { t, clientStrings } from '../i18n.js';
 import { categoryName } from '../catalogue.js';
+import { announceHtml } from '../settings.js';
 
 const ICONS = {
   menu: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>',
@@ -56,7 +57,7 @@ ${pixels.ga ? raw(`<script async src="https://www.googletagmanager.com/gtag/js?i
 </head>
 <body class="${bodyClass}">
 <a class="skip" href="#main">${lang === 'fr' ? 'Aller au contenu' : 'انتقل إلى المحتوى'}</a>
-<div class="announce">${lang === 'fr' ? raw('Livraison vers <b>58 wilayas</b> · Paiement à la livraison') : raw('توصيل إلى <b>58 ولاية</b> · الدفع عند الاستلام')}</div>
+${ctx.settings.announce[lang] ? html`<div class="announce">${announceHtml(ctx.settings.announce[lang])}</div>` : ''}
 <header class="site">
   <div class="wrap">
     <div class="hbar">
