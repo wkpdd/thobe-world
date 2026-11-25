@@ -105,6 +105,21 @@ from `wkpdd/newstore`. A real browser plays the customer:
     - 404 page, sitemap and canonical redirects
     - no sideways scroll on a phone, page weight under 250 KB
 
+## Dashboard (/admin)
+
+The home page's own words are edited at **`/admin`**, in Arabic and French:
+the announcement bar, the banner's small title, two-line title, text, both
+buttons (label and link), the four trust badges and the banner picture
+(JPEG/PNG/WebP, turned into one WebP). Products, prices, stock and orders stay
+in H47 Pay.
+
+- Login: `ADMIN_USER` (default `admin`) and `ADMIN_PASSWORD`. Left empty, a
+  password is generated once and written to `DATA_DIR/admin-password.txt`.
+- Saved in `DATA_DIR/site-settings.json` and `DATA_DIR/site/`: back them up
+  with the rest of `DATA_DIR`.
+- `npm run demo` uses a new temporary data folder each run, so dashboard
+  changes made in the demo last until it stops. Set `DATA_DIR` to keep them.
+
 ## Connect H47 Pay
 
 1. Deploy the site behind HTTPS and set `NEWSTORE_SYNC_KEY` to a long random

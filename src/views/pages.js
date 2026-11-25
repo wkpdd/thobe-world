@@ -10,21 +10,28 @@ export function homePage(ctx) {
   const s = t(lang);
   const shop = config.shop;
   const { products, categories } = catalogue.snapshot();
+  const hero = ctx.settings.hero;
+  // Button 2: the owner's own, or (left empty) the first category as before.
+  const firstCat = categories[0] ? { href: `/c/${encodeURIComponent(categories[0].slug)}`, label: categoryName(categories[0], lang) } : null;
+  const secondary = hero.secondary.href || hero.secondary.label.ar || hero.secondary.label.fr
+    ? (hero.secondary.label[lang] ? { href: hero.secondary.href || firstCat?.href || '/boutique', label: hero.secondary.label[lang] } : null)
+    : firstCat;
+  const trust = hero.trust.filter((row) => row.label[lang]);
   const featured = products.filter((p) => p.stock > 0).sort((a, b) => b.id - a.id).slice(0, 8);
   const body = html`
 <section class="hero">
   <div class="wrap">
     <div>
-      <span class="eyebrow">${shop.nameAr} · ${shop.nameFr}</span>
-      <h1>${lang === 'fr' ? html`Élégant<br><em>comme un roi</em>` : html`تأنق<br><em>كأنك ملك</em>`}</h1>
-      <p>${lang === 'fr' ? shop.taglineFr : shop.taglineAr}</p>
+      ${hero.eyebrow[lang] ? html`<span class="eyebrow">${hero.eyebrow[lang]}</span>` : ''}
+      <h1>${hero.title1[lang]}${hero.title1[lang] && hero.title2[lang] ? html`<br>` : ''}${hero.title2[lang] ? html`<em>${hero.title2[lang]}</em>` : ''}</h1>
+      ${hero.text[lang] ? html`<p>${hero.text[lang]}</p>` : ''}
       <div class="ctas">
-        <a class="btn btn-ink" href="/boutique">${s.shopAll}</a>
-        ${categories[0] ? html`<a class="btn btn-line" href="/c/${encodeURIComponent(categories[0].slug)}">${categoryName(categories[0], lang)}</a>` : ''}
+        ${hero.primary.label[lang] && hero.primary.href ? html`<a class="btn btn-ink" href="${hero.primary.href}">${hero.primary.label[lang]}</a>` : ''}
+        ${secondary ? html`<a class="btn btn-line" href="${secondary.href}">${secondary.label}</a>` : ''}
       </div>
-      <div class="trust">${s.features.map(([i, b]) => html`<div><i aria-hidden="true">${i}</i>${b}</div>`)}</div>
+      ${trust.length ? html`<div class="trust">${trust.map((row) => html`<div><i aria-hidden="true">${row.icon}</i>${row.label[lang]}</div>`)}</div>` : ''}
     </div>
-    <div class="hero-art"><img src="/img/logo-gold.webp" alt="" width="440" height="498" fetchpriority="high"></div>
+    <div class="hero-art${hero.imageFit === 'photo' && hero.image ? ' is-photo' : ''}"><img src="${ctx.heroImage}" alt="" width="440" height="498" fetchpriority="high"></div>
   </div>
 </section>
 ${categories.length ? html`<section class="block"><div class="wrap">

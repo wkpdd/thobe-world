@@ -66,6 +66,11 @@ export function loadConfig(overrides = {}) {
       perIpMax: Number(env.ORDER_IP_MAX ?? 6),
       duplicateWindowMin: Number(env.ORDER_DUPLICATE_WINDOW_MIN ?? 30),
     },
+    /** The /admin dashboard login. Empty password: one is generated in DATA_DIR/admin-password.txt. */
+    admin: {
+      user: env.ADMIN_USER ?? 'admin',
+      password: env.ADMIN_PASSWORD ?? '',
+    },
     trustProxy: env.TRUST_PROXY ?? 'loopback',
   };
   return config;
