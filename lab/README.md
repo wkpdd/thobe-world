@@ -14,16 +14,17 @@ Needs Windows 10/11 **Pro, Enterprise or Education**.
 
 1. Turn on « Windows Sandbox » in *Turn Windows features on or off*, then
    restart.
-2. Create the folder `C:\H47Lab`. Put three files in it:
+2. Create the folder `E:\h47-lab`. Put three files in it:
    - `H47Lab.wsb` and `setup-lab.ps1`, from this folder
    - `H47Pay-<version>-setup.exe`
 3. Double-click `H47Lab.wsb`. Setup takes about 5 minutes the first time. If
    Windows asks for permission for the H47 Pay setup, click Yes.
-4. Follow `C:\H47Lab\LAB-README.txt`. It holds the store address and the sync
-   key to type in H47 Pay « Mon site web ».
+4. Follow `E:\h47-lab\LAB-README.txt`. It holds the store address and the sync
+   key to type in H47 Pay « Mon site web ». Inside the sandbox the same folder
+   is `C:\h47-lab`, because the sandbox has only a C: drive.
 
 What is kept when the sandbox closes:
-- **Kept**, because it is in `C:\H47Lab` on your PC: the code, `.deploy.env`
+- **Kept**, because it is in `E:\h47-lab` on your PC: the code, `.deploy.env`
   and the store's data.
 - **Not kept:** H47 Pay's test data. Each start begins with a fresh install.
 
@@ -35,10 +36,11 @@ Use this for Windows Home, or to keep the test company between sessions:
 - a rented Windows cloud server, used through Remote Desktop
 
 On that machine:
-1. Create `C:\H47Lab` and copy `setup-lab.ps1` and the H47 Pay setup into it.
+1. Create a lab folder (for example `E:\h47-lab`) and copy `setup-lab.ps1`
+   and the H47 Pay setup into it. The script uses the folder it is in.
 2. In PowerShell **as administrator**, run:
    ```
-   powershell -ExecutionPolicy Bypass -File C:\H47Lab\setup-lab.ps1
+   powershell -ExecutionPolicy Bypass -File E:\h47-lab\setup-lab.ps1
    ```
 
 Run the script again at any time to update the code. Steps that are already

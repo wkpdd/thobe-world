@@ -3,20 +3,23 @@
 # inside the lab machine.
 #
 # What it does, each step skipped when already done:
-#   1. Node.js 22 LTS and MinGit, in C:\H47Lab\tools (no installer, no admin rights needed for these)
-#   2. the thobe-world code in C:\H47Lab\thobe-world (branch deploy-cpanel), npm install
-#   3. H47 Pay silently in SERVER mode, from the first H47Pay-*-setup.exe found in C:\H47Lab
+# The lab folder is the folder this script is in: E:\h47-lab on your PC, seen
+# as C:\h47-lab inside Windows Sandbox (H47Lab.wsb shares it).
+#
+#   1. Node.js 22 LTS and MinGit, in <lab>\tools (no installer, no admin rights needed for these)
+#   2. the thobe-world code in <lab>\thobe-world (branch deploy-cpanel), npm install
+#   3. H47 Pay silently in SERVER mode, from the newest H47Pay-*-setup.exe found in <lab>
 #   4. the store on http://127.0.0.1:8080 with an empty catalogue, waiting for H47 Pay
 #
-# C:\H47Lab is the folder shared with your real PC by H47Lab.wsb, so the code,
-# .deploy.env and the store's data survive closing the sandbox. H47 Pay's own
-# data (C:\ProgramData\NewStore) does not: the sandbox starts fresh every time.
+# The lab folder is on your real PC, so the code, .deploy.env and the store's
+# data survive closing the sandbox. H47 Pay's own data (C:\ProgramData\NewStore
+# inside the sandbox) does not: the sandbox starts fresh every time.
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'   # Invoke-WebRequest is 10x slower with the progress bar
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-$Lab   = 'C:\H47Lab'
+$Lab   = if ($PSScriptRoot) { $PSScriptRoot } else { 'C:\h47-lab' }
 $Tools = Join-Path $Lab 'tools'
 $Repo  = Join-Path $Lab 'thobe-world'
 $Log   = Join-Path $Lab 'setup-lab.log'
