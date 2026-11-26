@@ -154,7 +154,6 @@ API token, or by FTP. The one-time setup and how it works are in
   Today's values are placeholders.
 - The **policy wording** (`src/views/policies.js`: 7-day exchange, delays).
   Confirm every sentence.
-- The original logo file. The current one is cut out from a photo.
 - Domain and Algerian hosting, the RC/NIF numbers, and the pixel IDs.
 
 ## Layout
@@ -169,5 +168,5 @@ public/             css, small scripts, self-hosted fonts, communes of the 58 wi
 scripts/            demo catalogue (shaped exactly as H47 Pay sends it) and `npm run demo`
 deploy/             `npm run deploy`: release build, cPanel/FTP upload, switcher (bootstrap.cjs), rollback
 test/               unit, deploy and Playwright end-to-end; test/newstore/site.ts = H47 Pay's client
-design/  brand/  docs/   mockup, palette, logo, plan
+design/  brand/  docs/   mockup, palette, logo files (brand/README.md), plan
 ```

@@ -24,14 +24,14 @@ export function homePage(ctx) {
       </div>
       <div class="trust">${s.features.map(([i, b]) => html`<div><i aria-hidden="true">${i}</i>${b}</div>`)}</div>
     </div>
-    <div class="hero-art"><img src="/img/logo-gold.webp" alt="" width="440" height="498" fetchpriority="high"></div>
+    <div class="hero-art"><img src="/img/emblem-on-dark.svg" alt="" width="640" height="497" fetchpriority="high"></div>
   </div>
 </section>
 ${categories.length ? html`<section class="block"><div class="wrap">
   <div class="sec-head"><div class="rule">◆</div><h2>${s.categories}</h2></div>
   <div class="cats">${categories.map((c) => {
     const cover = products.find((p) => p.category === c.slug && p.cover)?.cover;
-    return html`<a class="cat" href="/c/${encodeURIComponent(c.slug)}">${cover ? photo(cover, '', { sizes: '(min-width:900px) 25vw, 50vw', max: 720 }) : html`<span class="ph-logo"><img src="/img/logo-gold.webp" alt="" width="440" height="498" loading="lazy"></span>`}<span class="lbl"><b>${categoryName(c, lang)}</b><span>${s.products(c.count)}</span></span></a>`;
+    return html`<a class="cat" href="/c/${encodeURIComponent(c.slug)}">${cover ? photo(cover, '', { sizes: '(min-width:900px) 25vw, 50vw', max: 720 }) : html`<span class="ph-logo"><img src="/img/emblem-gold.svg" alt="" width="640" height="497" loading="lazy"></span>`}<span class="lbl"><b>${categoryName(c, lang)}</b><span>${s.products(c.count)}</span></span></a>`;
   })}</div>
 </div></section>` : ''}
 <section class="block"><div class="wrap">

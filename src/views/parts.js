@@ -6,7 +6,7 @@ import { imageSet } from '../images.js';
 /** A responsive <img> for a stored photo, or the logo placeholder. */
 export function photo(imagePath, alt, { sizes, max, eager = false, className = '' } = {}) {
   const set = imageSet(imagePath, { sizes, max });
-  if (!set) return html`<span class="noimg"><img src="/img/logo-gold.webp" alt="" width="440" height="498" loading="lazy"></span>`;
+  if (!set) return html`<span class="noimg"><img src="/img/emblem-gold.svg" alt="" width="640" height="497" loading="lazy"></span>`;
   return html`<img src="${set.src}"${set.srcset ? html` srcset="${set.srcset}" sizes="${set.sizes}"` : ''} alt="${alt}" width="720" height="900" ${eager ? raw('fetchpriority="high"') : raw('loading="lazy"')} decoding="async"${className ? html` class="${className}"` : ''}>`;
 }
 

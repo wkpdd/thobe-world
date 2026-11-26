@@ -44,6 +44,7 @@ ${noindex ? raw('<meta name="robots" content="noindex">') : ''}
 <meta property="og:image" content="${ogImage}">
 <meta property="og:locale" content="${lang === 'fr' ? 'fr_DZ' : 'ar_DZ'}">
 <meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/svg+xml" href="/img/favicon.svg">
 <link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32.png">
 <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
 <link rel="preload" href="${assets.url(`fonts/Tajawal-400-${lang === 'fr' ? 'latin' : 'arabic'}.woff2`)}" as="font" type="font/woff2" crossorigin>
@@ -64,7 +65,7 @@ ${pixels.ga ? raw(`<script async src="https://www.googletagmanager.com/gtag/js?i
         <button class="icon menu-btn" type="button" data-open-drawer aria-label="${s.menu}">${icon('menu')}</button>
         <button class="icon" type="button" data-toggle-search aria-label="${s.search}">${icon('search')}</button>
       </div>
-      <a class="logo" href="/" aria-label="${shopName}"><img src="/img/logo-ink.webp" alt="${shop.nameAr} · ${shop.nameFr}" width="46" height="52"></a>
+      <a class="logo" href="/" aria-label="${shopName}"><img src="/img/logo.svg" alt="${shop.nameAr} · ${shop.nameFr}" width="149" height="52"></a>
       <div class="end">
         <a class="icon" href="${switchHref}" hreflang="${other}" lang="${other}" data-lang-switch>${other === 'fr' ? 'FR' : 'ع'}</a>
         <a class="icon" href="/panier" aria-label="${s.cart}">${icon('bag')}<span class="dot" data-cart-count data-count="0">0</span></a>
@@ -112,8 +113,7 @@ function footer(ctx) {
   <div class="wrap">
     <div class="cols">
       <div class="brand">
-        <img src="/img/logo-ink.webp" alt="" width="46" height="52" loading="lazy" style="height:52px;width:auto;margin-bottom:8px">
-        <b class="display" style="color:var(--ink);font-size:1.2rem">${shop.nameAr} · <span class="latin" style="font-size:.85rem">${shop.nameFr}</span></b>
+        <img src="/img/logo.svg" alt="${shop.nameAr} · ${shop.nameFr}" width="172" height="60" loading="lazy" style="height:60px;width:auto;margin-bottom:10px">
         <p style="margin:6px 0">${lang === 'fr' ? shop.sloganFr : shop.sloganAr} — ${s.footerAbout}</p>
         <p>📍 ${lang === 'fr' ? shop.addressFr : shop.addressAr}</p>
         <div class="carriers"><span class="carrier-pill">Noest</span><span class="carrier-pill">Yalidine</span><span class="carrier-pill">${lang === 'fr' ? 'Paiement à la livraison' : 'الدفع عند الاستلام'}</span></div>
