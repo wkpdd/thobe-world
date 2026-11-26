@@ -1,0 +1,22 @@
+<!--
+  Thobe World + H47 Pay test lab in Windows Sandbox (Windows 10/11 Pro, Enterprise or Education).
+  1. Create the folder C:\H47Lab on your PC and put in it: this file, setup-lab.ps1 and the H47Pay-<version>-setup.exe.
+  2. Double-click this file. The sandbox opens and sets itself up (about 5 minutes the first time).
+  Everything in C:\H47Lab is kept when the sandbox closes; the rest of the sandbox is wiped.
+-->
+<Configuration>
+  <Networking>Enable</Networking>
+  <VGpu>Enable</VGpu>
+  <MemoryInMB>8192</MemoryInMB>
+  <ClipboardRedirection>Enable</ClipboardRedirection>
+  <MappedFolders>
+    <MappedFolder>
+      <HostFolder>C:\H47Lab</HostFolder>
+      <SandboxFolder>C:\H47Lab</SandboxFolder>
+      <ReadOnly>false</ReadOnly>
+    </MappedFolder>
+  </MappedFolders>
+  <LogonCommand>
+    <Command>powershell.exe -NoExit -ExecutionPolicy Bypass -File C:\H47Lab\setup-lab.ps1</Command>
+  </LogonCommand>
+</Configuration>
