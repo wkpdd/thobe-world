@@ -75,12 +75,15 @@ if (-not (Test-Path '.deploy.env')) {
     'SITE_URL=https://thobeworld.com'
     'APP_DIR=thobe-world'
     'DEPLOY_METHOD=ftp'
-    'FTP_HOST=ftp.thobeworld.com'
+    '# the FTP server: its IP address (from the hosting welcome email) or its name'
+    'FTP_HOST='
     'FTP_PORT=21'
     'FTP_USER=thobew25'
     '# type the FTP password after the = sign, then: npm run deploy:check'
     'FTP_PASSWORD='
     'FTP_SECURE=true'
+    '# with an IP in FTP_HOST, deploy:check tells you the line to add here:'
+    '# FTP_TLS_SERVERNAME='
   ) | Set-Content -Encoding ascii '.deploy.env'
 }
 # The lab store's own settings: a fresh random key that H47 Pay will use.
@@ -119,7 +122,7 @@ The lab is ready.
              key     : $syncKey
 
   Deploy the real site (thobeworld.com) from here:
-    1. notepad $Repo\.deploy.env   → type the FTP password
+    1. notepad $Repo\.deploy.env   → type the FTP server IP and the FTP password
     2. in $Repo :  npm run deploy:check   then   npm run deploy
     3. undo:       npm run deploy:rollback
 

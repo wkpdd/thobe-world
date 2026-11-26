@@ -69,6 +69,9 @@ rollback never touches them.
      → Create, then copy the token.
    - **Password:** works only without two-factor authentication.
    - **FTP:** an FTP account whose folder includes `thobe-world`.
+     `FTP_HOST` can be the server's IP address. The connection stays
+     encrypted: the first `npm run deploy:check` prints the name on the
+     server's certificate as a line to add (`FTP_TLS_SERVERNAME=…`).
 4. Copy `.deploy.env.example` to `.deploy.env` and fill it in, then run:
    ```bash
    npm run deploy:check

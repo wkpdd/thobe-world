@@ -109,12 +109,22 @@ export function cpanelTransport({ url, user, token, password, auth, appDir, fetc
   };
 }
 
-/** FTP / FTPS with basic-ftp (a dev dependency: only the machine that deploys needs it). */
-export async function ftpTransport({ host, port, user, password, secure = true, appDir }) {
+/**
+ * FTP / FTPS with basic-ftp (a dev dependency: only the machine that deploys needs it).
+ * FTP_HOST may be an IP address: the TLS certificate is then checked against
+ * `tlsServername` (the server's name, e.g. server123.host.dz) instead of the IP.
+ */
+export async function ftpTransport({ host, port, user, password, secure = true, tlsServername, appDir }) {
   if (!host || !user || !password) throw new Error('FTP_HOST, FTP_USER and FTP_PASSWORD are required for DEPLOY_METHOD=ftp');
   const { Client } = await import('basic-ftp');
   const client = new Client(60_000);
-  await client.access({ host, port: Number(port ?? 21), user, password, secure });
+  const secureOptions = tlsServername ? { servername: tlsServername } : undefined;
+  try {
+    await client.access({ host, port: Number(port ?? 21), user, password, secure, secureOptions });
+  } catch (error) {
+    client.close();
+    throw explainFtpError(error, { host, tlsServername });
+  }
   const root = appDir ?? '';
   const remote = (rel) => (root ? posix.join(root, rel) : rel);
   const ensureParent = async (rel) => {
@@ -165,6 +175,30 @@ export async function ftpTransport({ host, port, user, password, secure = true, 
       }),
     close: () => serial(async () => client.close()),
   };
+}
+
+/** Turn TLS and login failures into what to change in .deploy.env. */
+function explainFtpError(error, { host, tlsServername }) {
+  if (error.code === 'ERR_TLS_CERT_ALTNAME_INVALID') {
+    const names = String(error.cert?.subjectaltname ?? '')
+      .split(',')
+      .map((n) => n.trim())
+      .filter((n) => n.startsWith('DNS:'))
+      .map((n) => n.slice(4));
+    const name = names.find((n) => !n.startsWith('*.')) ?? error.cert?.subject?.CN ?? '';
+    return new Error(
+      `the FTP server's certificate is for ${names.join(', ') || error.cert?.subject?.CN || 'another name'}, not for « ${tlsServername ?? host} ».`
+        + (name ? ` Add this line to .deploy.env and run the check again:\n    FTP_TLS_SERVERNAME=${name}` : ''),
+    );
+  }
+  if (['SELF_SIGNED_CERT_IN_CHAIN', 'DEPTH_ZERO_SELF_SIGNED_CERT', 'UNABLE_TO_VERIFY_LEAF_SIGNATURE', 'CERT_HAS_EXPIRED'].includes(error.code)) {
+    return new Error(`the FTP server's certificate is not trusted (${error.code}). Ask the host for the server's FTP name and set FTP_HOST or FTP_TLS_SERVERNAME to it.`);
+  }
+  if (error.code === 530) return new Error('the FTP server refused the login (530): check FTP_USER and FTP_PASSWORD');
+  if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT' || error.code === 'ENOTFOUND') {
+    return new Error(`cannot reach the FTP server ${host}:${error.port ?? 21} (${error.code}): check FTP_HOST and FTP_PORT`);
+  }
+  return error;
 }
 
 /** The transport the settings ask for. */

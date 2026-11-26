@@ -50,6 +50,7 @@ export function loadSettings(env = process.env, file = join(REPO, '.deploy.env')
       user: get('FTP_USER'),
       password: get('FTP_PASSWORD'),
       secure: get('FTP_SECURE', 'true') !== 'false',
+      tlsServername: get('FTP_TLS_SERVERNAME'),
       appDir: get('FTP_APP_DIR', appDir),
     },
     local: { dir: get('LOCAL_DIR') },
