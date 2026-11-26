@@ -4,6 +4,7 @@ import { categoryName, colorLabel } from '../catalogue.js';
 import { layout } from './layout.js';
 import { crumbs, grid, money, photo } from './parts.js';
 import { POLICIES } from './policies.js';
+import { carousel, launchBanner } from './launch.js';
 
 export function homePage(ctx) {
   const { lang, config, catalogue } = ctx;
@@ -11,8 +12,12 @@ export function homePage(ctx) {
   const shop = config.shop;
   const { products, categories } = catalogue.snapshot();
   const featured = products.filter((p) => p.stock > 0).sort((a, b) => b.id - a.id).slice(0, 8);
+  const slides = ctx.content?.liveSlides() ?? [];
+  const promoted = ctx.content?.homeLaunch() ?? null;
   const body = html`
-<section class="hero">
+${slides.length ? carousel(ctx, slides) : ''}
+${promoted ? launchBanner(ctx, promoted) : ''}
+${slides.length ? '' : html`<section class="hero">
   <div class="wrap">
     <div>
       <span class="eyebrow">${shop.nameAr} · ${shop.nameFr}</span>
@@ -26,7 +31,7 @@ export function homePage(ctx) {
     </div>
     <div class="hero-art"><img src="/img/emblem-on-dark.svg" alt="" width="640" height="497" fetchpriority="high"></div>
   </div>
-</section>
+</section>`}
 ${categories.length ? html`<section class="block"><div class="wrap">
   <div class="sec-head"><div class="rule">◆</div><h2>${s.categories}</h2></div>
   <div class="cats">${categories.map((c) => {
@@ -36,7 +41,7 @@ ${categories.length ? html`<section class="block"><div class="wrap">
 </div></section>` : ''}
 <section class="block"><div class="wrap">
   <div class="sec-head"><div class="rule">◆</div><h2>${s.featured}</h2></div>
-  ${featured.length ? grid(featured, lang, 2) : html`<p class="empty">${lang === 'fr' ? 'Le catalogue arrive bientôt.' : 'المنتجات قادمة قريباً.'}</p>`}
+  ${featured.length ? grid(featured, lang, 2, ctx.content) : html`<p class="empty">${lang === 'fr' ? 'Le catalogue arrive bientôt.' : 'المنتجات قادمة قريباً.'}</p>`}
   ${products.length > featured.length ? html`<div class="sec-more"><a class="btn btn-line" href="/boutique">${s.viewAll}</a></div>` : ''}
 </div></section>
 <section class="block"><div class="wrap">
@@ -49,6 +54,7 @@ ${categories.length ? html`<section class="block"><div class="wrap">
   return layout(ctx, {
     body,
     canonical: '/',
+    pageScripts: [...(slides.length > 1 ? ['js/carousel.js'] : []), ...(promoted ? ['js/launch.js'] : [])],
     jsonLd: {
       '@context': 'https://schema.org',
       '@type': 'ClothingStore',
@@ -85,7 +91,7 @@ export function listingPage(ctx, { title, heading, items, crumbsItems, query = {
     <label><input type="checkbox" name="stock" value="1"${query.stock === '1' ? raw(' checked') : ''}> ${s.onlyInStock}</label>
     <button class="btn btn-ink" type="submit" style="padding:8px 18px;min-height:40px">${s.apply}</button>
   </form>` : ''}
-  ${items.length ? grid(items, lang, 4) : html`<p class="empty">${s.noResults}</p>`}
+  ${items.length ? grid(items, lang, 4, ctx.content) : html`<p class="empty">${s.noResults}</p>`}
 </div>`;
   return layout(ctx, { title, body, canonical, noindex: searchQuery !== null || Object.values(query).some(Boolean) });
 }
@@ -251,7 +257,7 @@ export function notFoundPage(ctx) {
   <h1 class="page-title">${s.notFound}</h1>
   <p class="muted">${s.notFoundSub}</p>
   <p style="margin:20px 0"><a class="btn btn-ink" href="/">${s.backHome}</a></p>
-  ${some.length ? grid(some, lang) : ''}
+  ${some.length ? grid(some, lang, 0, ctx.content) : ''}
 </div>`;
   return layout(ctx, { title: s.notFound, body, noindex: true });
 }

@@ -67,6 +67,11 @@ export function loadConfig(overrides = {}) {
       duplicateWindowMin: Number(env.ORDER_DUPLICATE_WINDOW_MIN ?? 30),
     },
     trustProxy: env.TRUST_PROXY ?? 'loopback',
+    /** The website dashboard (/admin): carousel and exclusive launches. Empty password: the dashboard stays closed. */
+    admin: {
+      user: env.ADMIN_USER ?? 'admin',
+      password: env.ADMIN_PASSWORD ?? '',
+    },
   };
   return config;
 }

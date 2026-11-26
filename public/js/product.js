@@ -14,6 +14,12 @@
     var n = P.grid[(color || '') + '||' + (size || '')];
     return typeof n === 'number' && n > 0 ? n : 0;
   }
+  /** Exclusive launches: at most this many per customer (null: no cap). */
+  var cap = P.maxPerCustomer || null;
+  function showQty() {
+    var q = root.querySelector('[data-qty-value]');
+    if (q) q.textContent = String(state.qty);
+  }
   function colourTotal(color) {
     var c = P.colors.filter(function (x) { return x.value === color; })[0];
     return c ? c.stock : 0;
@@ -29,6 +35,7 @@
 
   function drawStock() {
     var el = root.querySelector('[data-stock]');
+    if (!el) return; // a launch not open yet: no stock line, no order form
     var n = available();
     var shown = n === null ? (state.color ? colourTotal(state.color) : P.stock) : n;
     el.className = 'stock';
@@ -38,13 +45,13 @@
     } else if (shown === 1) {
       el.classList.add('low');
       el.textContent = S.lastOne;
-    } else if (shown <= 5) {
+    } else if (shown <= 5 || P.limited) {
       el.classList.add('low');
       el.innerHTML = '';
-      el.appendChild(document.createTextNode(S.lowStock.replace('{n}', shown)));
+      el.appendChild(document.createTextNode((P.limited && S.launch ? S.launch.onlyLeft : S.lowStock).replace('{n}', shown)));
       var bar = document.createElement('span');
       bar.className = 'bar';
-      bar.innerHTML = '<i style="width:' + Math.max(12, shown * 18) + '%"></i>';
+      bar.innerHTML = '<i style="width:' + Math.min(100, Math.max(12, shown * 18)) + '%"></i>';
       el.appendChild(bar);
     } else {
       el.classList.add('ok');
@@ -54,7 +61,8 @@
     var add = root.querySelector('[data-add-to-cart]');
     if (add) add.disabled = n === 0 || (n === null && shown <= 0);
     if (n !== null && state.qty > Math.max(1, n)) state.qty = Math.max(1, n);
-    root.querySelector('[data-qty-value]').textContent = String(state.qty);
+    if (cap && state.qty > cap) state.qty = cap;
+    showQty();
     document.dispatchEvent(new CustomEvent('tw:selection'));
   }
 
@@ -137,8 +145,9 @@
     b.addEventListener('click', function () {
       var n = available();
       var max = n === null ? 20 : Math.max(1, n);
+      if (cap) max = Math.min(max, cap);
       state.qty = Math.min(max, Math.max(1, state.qty + Number(b.getAttribute('data-qty'))));
-      root.querySelector('[data-qty-value]').textContent = String(state.qty);
+      showQty();
       document.dispatchEvent(new CustomEvent('tw:selection'));
     });
   });
@@ -171,7 +180,8 @@
   document.querySelectorAll('[data-scroll-order]').forEach(function (a) {
     a.addEventListener('click', function (e) {
       e.preventDefault();
-      var form = document.getElementById('orderForm');
+      var form = document.getElementById('orderForm') || document.getElementById('notify');
+      if (!form) return;
       form.scrollIntoView({ behavior: 'smooth', block: 'start' });
       setTimeout(function () { var f = form.querySelector('input[name=fullName]'); if (f) f.focus({ preventScroll: true }); }, 400);
     });

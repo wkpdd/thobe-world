@@ -60,7 +60,8 @@ rollback never touches them.
    - **Application URL:** your domain
    - **Application startup file:** `app.cjs`
 2. **Environment variables** (same page): `SITE_URL`, `NEWSTORE_SYNC_KEY` and
-   `APP_SECRET`, plus any `SHOP_*` and pixel values from `.env.example`. Leave
+   `APP_SECRET`, plus `ADMIN_PASSWORD` for the website dashboard (/admin), and
+   any `SHOP_*` and pixel values from `.env.example`. Leave
    `DATA_DIR` unset: the switcher uses `~/thobe-world/data`.
    - Instead of setting them here, you can put a `.env` file in the
      application root.

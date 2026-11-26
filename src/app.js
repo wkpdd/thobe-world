@@ -20,6 +20,11 @@ import { OrderDesk, validateOrder } from './orders.js';
 import { homePage, listingPage, cartPage, checkoutPage, thanksPage, trackPage, staticPage, notFoundPage } from './views/pages.js';
 import { productPage } from './views/product.js';
 import { POLICIES } from './views/policies.js';
+import { ContentStore } from './content.js';
+import { launchRefusal, whenText } from './launches.js';
+import { adminRouter } from './admin/routes.js';
+import { launchPage } from './views/launch.js';
+import { normalizePhone } from './orders.js';
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const PUBLIC = join(ROOT, 'public');
@@ -29,6 +34,9 @@ export function createApp(config) {
   const storage = new JsonFileSyncStorage({ dir: config.dataDir, uploadsUrl: '/uploads/' });
   const catalogue = new Catalogue(storage);
   const images = new ImageOptimizer({ uploadsDir: storage.uploadsDir, cacheDir: join(config.dataDir, 'cache') });
+  // What the shop manages on the website itself (/admin): carousel, launches, « prévenez-moi ».
+  const content = new ContentStore({ dir: config.dataDir });
+  const mediaImages = new ImageOptimizer({ uploadsDir: content.mediaDir, cacheDir: join(config.dataDir, 'cache', 'media') });
 
   // A new photo from H47 Pay → its WebP sizes are prepared right after the sync answers.
   const putBytes = storage.images.putBytes;
@@ -103,6 +111,25 @@ export function createApp(config) {
     }
   });
 
+  app.get('/mimg/:width/:name', async (req, res, next) => {
+    if (!imagesEnabled) {
+      const original = content.mediaPath(req.params.name);
+      return original ? res.sendFile(original) : next();
+    }
+    try {
+      const file = await mediaImages.get(Number(req.params.width), req.params.name);
+      if (!file) return next();
+      res.setHeader('Cache-Control', `public, max-age=${YEAR}, immutable`);
+      res.type('image/webp');
+      return res.sendFile(file);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  // The website dashboard. Its own pages, its own login; never cached, never indexed.
+  app.use('/admin', adminRouter({ config, content, catalogue, assets, images: mediaImages }));
+
   // 3. Language: ?lang=fr|ar sets a cookie; Arabic by default.
   app.use((req, res, next) => {
     const asked = typeof req.query.lang === 'string' && LANGS.includes(req.query.lang) ? req.query.lang : null;
@@ -111,7 +138,7 @@ export function createApp(config) {
     if (asked && asked !== cookie) res.setHeader('Set-Cookie', `lang=${asked}; Path=/; Max-Age=31536000; SameSite=Lax`);
     const url = new URL(req.originalUrl, 'http://x');
     url.searchParams.delete('lang');
-    res.locals.ctx = { lang, config, assets, catalogue, path: `${url.pathname}${url.search}`, deliveryOptions: storage.shopData().deliveryOptions };
+    res.locals.ctx = { lang, config, assets, catalogue, content, path: `${url.pathname}${url.search}`, deliveryOptions: storage.shopData().deliveryOptions };
     res.setHeader('Vary', 'Cookie');
     next();
   });
@@ -196,6 +223,11 @@ export function createApp(config) {
     return view ? page(res, view) : next();
   });
 
+  app.get('/lancement/:slug', (req, res, next) => {
+    const launch = content.launchBySlug(req.params.slug);
+    return launch ? page(res, launchPage(res.locals.ctx, launch)) : next();
+  });
+
   // 5. JSON for the browser scripts.
   app.post('/api/cart', express.json({ limit: '20kb' }), (req, res) => {
     const { byExternalId } = catalogue.snapshot();
@@ -204,7 +236,8 @@ export function createApp(config) {
       const p = byExternalId.get(String(line?.externalId ?? ''));
       if (!p) return { externalId: line?.externalId, missing: true };
       const colour = p.colors.find((c) => c.value === line.color);
-      const available = p.isModel ? Number(p.grid[`${line.color ?? ''}||${line.size ?? ''}`] ?? 0) : p.stock;
+      const locked = content.launchFor(p.externalId)?.state === 'upcoming';
+      const available = locked ? 0 : p.isModel ? Number(p.grid[`${line.color ?? ''}||${line.size ?? ''}`] ?? 0) : p.stock;
       const photoPath = colour?.photos[0] ?? p.cover;
       return {
         externalId: p.externalId,
@@ -230,6 +263,16 @@ export function createApp(config) {
     if (req.body?.website) return res.status(400).json({ ok: false, message: s.errors.generic });
     const valid = validateOrder(req.body);
     if (!valid.ok) return res.status(400).json({ ok: false, field: valid.field, message: s.errors[valid.code] });
+    // Exclusive launches: nothing before the hour, and the per-customer cap (a basket sent twice is not counted twice).
+    if (!desk.findDuplicate(valid.order, valid.order.lines)) {
+      const refusal = launchRefusal(valid.order, { content, storage, catalogue });
+      if (refusal?.code === 'launchLocked') {
+        const productName = refusal.product ? (lang === 'fr' ? refusal.product.nameFr : refusal.product.nameAr) : '';
+        return res.status(409).json({ ok: false, code: refusal.code, message: s.errors.launchLocked(productName, whenText(refusal.launch.launchAt, lang)) });
+      }
+      if (refusal?.code === 'launchMax') return res.status(409).json({ ok: false, code: refusal.code, message: s.errors.launchMax(refusal.max) });
+    }
+    // Counted after the launch rules: trying before the opening hour is not a suspicious order.
     if (!desk.allow(req.ip ?? 'unknown')) return res.status(429).json({ ok: false, message: s.errors.rate });
     const result = desk.place(valid.order);
     if (!result.ok) {
@@ -247,13 +290,30 @@ export function createApp(config) {
     });
   });
 
+  // « Prévenez-moi » on a launch that has not opened yet.
+  const notifyHits = new Map();
+  app.post('/api/notify', express.json({ limit: '4kb' }), (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    const s = t(res.locals.ctx.lang);
+    if (req.body?.website) return res.status(400).json({ ok: false, message: s.errors.generic });
+    const ip = req.ip ?? 'unknown';
+    const recent = (notifyHits.get(ip) ?? []).filter((at) => Date.now() - at < 10 * 60_000);
+    if (recent.length >= 10) return res.status(429).json({ ok: false, message: s.errors.rate });
+    notifyHits.set(ip, [...recent, Date.now()]);
+    if (notifyHits.size > 5000) notifyHits.clear();
+    if (!normalizePhone(req.body?.phone)) return res.status(400).json({ ok: false, field: 'phone', message: s.errors.phone });
+    const result = content.subscribe(String(req.body?.launch ?? ''), { phone: req.body?.phone, name: req.body?.name });
+    if (!result.ok) return res.status(result.code === 'gone' ? 404 : 400).json({ ok: false, message: result.code === 'gone' ? s.errors.gone : s.errors.generic });
+    return res.json({ ok: true, message: result.already ? s.launch.notifyAlready : s.launch.notifyDone });
+  });
+
   // 6. Search engines and health.
   app.get('/robots.txt', (_req, res) => {
-    res.type('text/plain').send(`User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /panier\nDisallow: /commande\nDisallow: /merci/\nSitemap: ${config.siteUrl}/sitemap.xml\n`);
+    res.type('text/plain').send(`User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /panier\nDisallow: /commande\nDisallow: /merci/\nDisallow: /admin\nSitemap: ${config.siteUrl}/sitemap.xml\n`);
   });
   app.get('/sitemap.xml', (_req, res) => {
     const snap = catalogue.snapshot();
-    const urls = ['/', '/boutique', ...snap.categories.map((c) => `/c/${encodeURIComponent(c.slug)}`), ...snap.products.map(productPath), ...Object.keys(POLICIES).map((p) => `/page/${p}`)];
+    const urls = ['/', '/boutique', ...snap.categories.map((c) => `/c/${encodeURIComponent(c.slug)}`), ...snap.products.map(productPath), ...Object.keys(POLICIES).map((p) => `/page/${p}`), ...content.launches().filter((l) => l.active).map((l) => `/lancement/${l.slug}`)];
     res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `<url><loc>${config.siteUrl}${u}</loc></url>`).join('\n')}\n</urlset>\n`);
   });
   app.get('/health', (_req, res) => {
@@ -280,6 +340,6 @@ export function createApp(config) {
     res.status(500).type('text/plain').send('Erreur interne. Réessayez dans un instant.');
   });
 
-  return { app, storage, catalogue, images, desk, receiver };
+  return { app, storage, catalogue, images, desk, receiver, content };
 }
 

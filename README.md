@@ -56,6 +56,40 @@ site holds no courier token.
   robots. Meta, TikTok and Google pixels with ViewContent, AddToCart,
   InitiateCheckout and Purchase events.
 
+## Website dashboard (/admin)
+
+Products, prices, stock, categories (« familles ») and orders come from
+H47 Pay. Two things are managed on the website itself, at
+**https://thobeworld.com/admin**:
+
+- **Carrousel**: wide pictures at the top of the home page, each with an
+  optional picture for phones, a title, subtitle and button in Arabic and
+  French, and a link (category, launch, article or any address).
+  - Put them in order with ↑ ↓.
+  - Schedule them with « à partir du » / « jusqu’au ».
+  - With no visible slide, the home page shows its usual banner.
+- **Lancements exclusifs**: pick articles that H47 Pay sent and set the
+  opening date and hour (Algiers time). Before that hour:
+  - the articles show « قريباً » and a countdown, on their page and on
+    `/lancement/<name>`, which is also promoted on the home page;
+  - they **cannot be ordered**, and the server refuses an early order;
+  - customers can leave their number (« نبّهني »). The dashboard lists them
+    with a ready-to-send WhatsApp message, and a CSV export.
+
+  At the hour the order form appears by itself. A **limited edition** shows
+  « حصري · كمية محدودة » and the pieces left. An optional **maximum per
+  customer** counts every order from the same phone number.
+
+To open the dashboard, set `ADMIN_PASSWORD` (12 characters or more, and
+optionally `ADMIN_USER`) in cPanel → Setup Node.js App → Environment variables,
+then click Restart. Its data is `data/site-content.json` and `data/media/`, in
+the shared data folder that deploys never touch.
+
+The login protections:
+- 8 wrong passwords lock that address for 15 minutes;
+- the session lasts 12 hours, and changing the password signs everyone out;
+- forms posted from another site are refused.
+
 ## Run it
 
 ```bash
@@ -162,6 +196,9 @@ API token, or by FTP. The one-time setup and how it works are in
 src/app.js          routes; mounts @h47io/sync-receiver at /api/sync.php
 src/catalogue.js    H47 Pay rows → what pages draw (modèles, colours, photos, stock)
 src/orders.js       checkout checks, duplicate guard, rate limit, tracking
+src/content.js      what /admin manages: carousel slides, launches, « notify me » sign-ups
+src/launches.js     launch rules on orders (closed before the hour, max per customer)
+src/admin/          the dashboard: login, pages, routes
 src/images.js       WebP sizes from the verbatim uploads, cached
 src/views/          server-rendered pages (layout, home, listing, product, cart, …)
 public/             css, small scripts, self-hosted fonts, communes of the 58 wilayas

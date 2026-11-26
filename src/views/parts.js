@@ -4,8 +4,8 @@ import { formatMoney, name, productPath, colorLabel } from '../catalogue.js';
 import { imageSet } from '../images.js';
 
 /** A responsive <img> for a stored photo, or the logo placeholder. */
-export function photo(imagePath, alt, { sizes, max, eager = false, className = '' } = {}) {
-  const set = imageSet(imagePath, { sizes, max });
+export function photo(imagePath, alt, { sizes, max, eager = false, className = '', base = '/img' } = {}) {
+  const set = imageSet(imagePath, { sizes, max, base });
   if (!set) return html`<span class="noimg"><img src="/img/emblem-gold.svg" alt="" width="640" height="497" loading="lazy"></span>`;
   return html`<img src="${set.src}"${set.srcset ? html` srcset="${set.srcset}" sizes="${set.sizes}"` : ''} alt="${alt}" width="720" height="900" ${eager ? raw('fetchpriority="high"') : raw('loading="lazy"')} decoding="async"${className ? html` class="${className}"` : ''}>`;
 }
@@ -18,11 +18,14 @@ export function savePercent(product) {
   return was > 0 ? Math.round((1 - product.priceNumber / was) * 100) : 0;
 }
 
-export function card(product, lang, { eager = false } = {}) {
+export function card(product, lang, { eager = false, content = null } = {}) {
   const s = t(lang);
   const title = name(product, lang);
   const save = savePercent(product);
   const badges = [];
+  const launch = content?.launchFor(product.externalId) ?? null;
+  if (launch?.state === 'upcoming') badges.push(html`<span class="badge launch">${s.launch.soon}</span>`);
+  else if (launch?.launch.limited && product.stock > 0) badges.push(html`<span class="badge launch">${s.launch.exclusive}</span>`);
   if (product.stock <= 0) badges.push(html`<span class="badge out">${s.soldOut}</span>`);
   else if (save > 0) badges.push(html`<span class="badge gold" dir="ltr">−${save}%</span>`);
   for (const b of product.badges.slice(0, 2)) badges.push(html`<span class="badge">${b}</span>`);
@@ -36,8 +39,8 @@ export function card(product, lang, { eager = false } = {}) {
 </a>`;
 }
 
-export const grid = (products, lang, eagerCount = 0) =>
-  html`<div class="grid">${products.map((p, i) => card(p, lang, { eager: i < eagerCount }))}</div>`;
+export const grid = (products, lang, eagerCount = 0, content = null) =>
+  html`<div class="grid">${products.map((p, i) => card(p, lang, { eager: i < eagerCount, content }))}</div>`;
 
 export function crumbs(items) {
   return html`<nav class="crumbs" aria-label="breadcrumb">${items.map((item, i) =>

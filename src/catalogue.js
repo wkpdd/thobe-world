@@ -55,7 +55,7 @@ export function slugify(text) {
 
 export const productPath = (product) => `/p/${product.slugBase ? `${product.slugBase}-` : ''}${product.id}`;
 
-const pick = (lang, ar, fr) => (lang === 'fr' ? fr || ar : ar || fr) || '';
+export const pick = (lang, ar, fr) => (lang === 'fr' ? fr || ar : ar || fr) || '';
 
 /** Build every page's model once per catalogue version (cheap: in memory). */
 export class Catalogue {

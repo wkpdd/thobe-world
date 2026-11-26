@@ -1,4 +1,5 @@
 import { landingPageFrame, hasLandingPage } from '@h47io/sync-receiver';
+import { launchBox } from './launch.js';
 import { html, raw, jsonForScript } from '../html.js';
 import { t } from '../i18n.js';
 import { categoryName, colorLabel, description, highlights, name, productPath } from '../catalogue.js';
@@ -27,6 +28,10 @@ export function productPage(ctx, product, related) {
   const firstColour = product.colors.find((c) => c.stock > 0) ?? product.colors[0] ?? null;
   const startPhotos = (firstColour?.photos.length ? firstColour.photos : product.gallery).slice(0, 8);
   const guideRows = product.sizes.filter((z) => QAMIS_GUIDE[z]);
+  // An exclusive launch: before its hour the order form gives way to a countdown and « notify me ».
+  const found = ctx.content?.launchFor(product.externalId) ?? null;
+  const locked = found?.state === 'upcoming';
+  const live = found?.state === 'live' ? found.launch : null;
   const landing = hasLandingPage(product.landingHtml) ? landingPageFrame(product.landingHtml, { title: product.nameFr, height: '120vh' }) : '';
 
   // Everything the browser needs to draw the selector: no stock is trusted from here, the server re-checks.
@@ -37,6 +42,8 @@ export function productPage(ctx, product, related) {
     priceNumber: product.priceNumber,
     isModel: product.isModel,
     stock: product.stock,
+    limited: Boolean(live?.limited),
+    maxPerCustomer: live?.maxPerCustomer ?? null,
     sizes: product.sizes,
     grid: product.grid,
     url: productPath(product),
@@ -55,7 +62,7 @@ export function productPage(ctx, product, related) {
   ${crumbs([{ href: '/', label: s.home }, product.category ? { href: `/c/${encodeURIComponent(product.category)}`, label: categoryName(product, lang) } : null, { label: title }].filter(Boolean))}
   <div class="pd" data-product>
     <div class="gallery">
-      <div class="main">${product.badges.length || save > 0 ? html`<div class="badges">${save > 0 ? html`<span class="badge gold" dir="ltr">−${save}%</span>` : ''}${product.badges.slice(0, 3).map((b) => html`<span class="badge">${b}</span>`)}</div>` : ''}<span data-main-photo>${photo(startPhotos[0], title, { sizes: '(min-width:960px) 560px, 100vw', max: 1280, eager: true })}</span></div>
+      <div class="main">${product.badges.length || save > 0 || locked || live?.limited ? html`<div class="badges">${locked ? html`<span class="badge launch">${s.launch.soon}</span>` : live?.limited ? html`<span class="badge launch">${s.launch.limited}</span>` : ''}${save > 0 ? html`<span class="badge gold" dir="ltr">−${save}%</span>` : ''}${product.badges.slice(0, 3).map((b) => html`<span class="badge">${b}</span>`)}</div>` : ''}<span data-main-photo>${photo(startPhotos[0], title, { sizes: '(min-width:960px) 560px, 100vw', max: 1280, eager: true })}</span></div>
       <div class="thumbs" data-thumbs>${startPhotos.length > 1 ? startPhotos.map((p, i) => html`<button type="button" aria-pressed="${i === 0}" data-thumb="${i}" aria-label="${title} ${i + 1}">${photo(p, '', { max: 320, sizes: '72px' })}</button>`) : ''}</div>
     </div>
     <div class="buy">
@@ -69,7 +76,8 @@ export function productPage(ctx, product, related) {
       ${product.sizes.length ? html`<fieldset class="opt"><legend>${s.size} ${guideRows.length ? html`<a href="#guide">${s.sizeGuide}</a>` : ''}</legend>
         <div class="sizes" role="group" aria-label="${s.chooseSize}">${product.sizes.map((z) => html`<button type="button" class="sz" data-size="${z}" aria-pressed="false">${z}</button>`)}</div>
       </fieldset>` : ''}
-      <div class="stock" data-stock aria-live="polite"></div>
+      ${locked ? launchBox(ctx, found.launch) : html`<div class="stock" data-stock aria-live="polite"></div>
+      ${live?.maxPerCustomer ? html`<p class="muted small">${s.launch.maxPer(live.maxPerCustomer)}</p>` : ''}
       <div class="qty-row" style="margin-top:14px">
         <span>${s.quantity}</span>
         <div class="qty"><button type="button" data-qty="-1" aria-label="−">−</button><output data-qty-value>1</output><button type="button" data-qty="1" aria-label="+">+</button></div>
@@ -78,7 +86,7 @@ export function productPage(ctx, product, related) {
         <button class="btn btn-ink" type="button" data-add-to-cart>${s.addToCart}</button>
         <a class="btn btn-gold" href="#orderForm" data-scroll-order>${s.orderNow}</a>
       </div>
-      ${orderForm(ctx, { submitLabel: s.buyNowCod })}
+      ${orderForm(ctx, { submitLabel: s.buyNowCod })}`}
       <div class="feat">${s.features.map(([i, b, small]) => html`<div><i aria-hidden="true">${i}</i><span><b>${b}</b><small>${small}</small></span></div>`)}</div>
     </div>
   </div>
@@ -99,14 +107,14 @@ ${guideRows.length ? html`<section class="block" id="guide" style="padding-top:0
   <div class="table-scroll"><table class="guide"><thead><tr><th>${s.size}</th><th>${lang === 'fr' ? 'Votre taille (cm)' : 'طولك (سم)'}</th><th>${lang === 'fr' ? 'Longueur (cm)' : 'طول القميص (سم)'}</th></tr></thead>
   <tbody>${guideRows.map((z) => html`<tr><td><b>${z}</b></td><td dir="ltr">${QAMIS_GUIDE[z][0]}</td><td>${QAMIS_GUIDE[z][1]}</td></tr>`)}</tbody></table></div>
 </div></section>` : ''}
-${related.length ? html`<section class="block" style="padding-top:0"><div class="wrap"><div class="sec-head"><div class="rule">◆</div><h2>${related.some((p) => p.category !== product.category) ? s.completeLook : s.youMayLike}</h2></div>${grid(related, lang)}</div></section>` : ''}
+${related.length ? html`<section class="block" style="padding-top:0"><div class="wrap"><div class="sec-head"><div class="rule">◆</div><h2>${related.some((p) => p.category !== product.category) ? s.completeLook : s.youMayLike}</h2></div>${grid(related, lang, 0, ctx.content)}</div></section>` : ''}
 <section class="block" style="padding-top:0"><div class="wrap narrow">
   <h2 class="display" style="font-size:1.5rem;margin-bottom:10px">${s.faq}</h2>
   ${s.faqs.map(([q, a]) => html`<details class="faq"><summary>${q}</summary><p>${a}</p></details>`)}
 </div></section>
 <div class="sticky-cta">
   <div class="p"><b>${money(product.price, lang)}</b>${product.compareAt ? html`<small><s>${money(product.compareAt, lang)}</s></small>` : ''}</div>
-  <a class="btn btn-gold" href="#orderForm" data-scroll-order>${s.orderNow}</a>
+  ${locked ? html`<a class="btn btn-gold" href="#notify" data-scroll-order>${s.launch.notifyButton}</a>` : html`<a class="btn btn-gold" href="#orderForm" data-scroll-order>${s.orderNow}</a>`}
 </div>
 <script>window.TW_PRODUCT=${jsonForScript(model)};window.TW_DELIVERY=${jsonForScript(ctx.deliveryOptions)};window.TW_MODE="product";</script>`;
 
@@ -126,7 +134,7 @@ ${related.length ? html`<section class="block" style="padding-top:0"><div class=
       url,
       priceCurrency: 'DZD',
       price: String(product.priceNumber),
-      availability: product.stock > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+      availability: locked ? 'https://schema.org/PreOrder' : product.stock > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
       itemCondition: 'https://schema.org/NewCondition',
     },
   };
@@ -138,7 +146,7 @@ ${related.length ? html`<section class="block" style="padding-top:0"><div class=
     image: imageUrl,
     jsonLd,
     bodyClass: 'is-product',
-    pageScripts: ['delivery-checkout.js', 'js/order.js', 'js/product.js'],
+    pageScripts: locked ? ['js/product.js', 'js/launch.js'] : ['delivery-checkout.js', 'js/order.js', 'js/product.js'],
     pixelEvents: [{ name: 'ViewContent', value: product.priceNumber, currency: 'DZD', id: product.externalId, contentName: product.nameFr }],
   });
 }

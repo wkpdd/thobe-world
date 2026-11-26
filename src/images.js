@@ -85,14 +85,44 @@ export class ImageOptimizer {
 export const uploadName = (imagePath) => String(imagePath ?? '').split('/').pop() ?? '';
 
 /** `<img>` attributes for a stored photo: srcset of WebP sizes. */
-export function imageSet(imagePath, { sizes = '(min-width:1000px) 25vw, 50vw', max = 960 } = {}) {
+export function imageSet(imagePath, { sizes = '(min-width:1000px) 25vw, 50vw', max = 960, base = '/img' } = {}) {
   if (!imagePath) return null;
   if (/^https?:\/\//u.test(imagePath)) return { src: imagePath, srcset: '', sizes: '' };
   const name = uploadName(imagePath);
   const widths = WIDTHS.filter((w) => w <= max && w >= 320);
   return {
-    src: `/img/${widths.includes(720) && max >= 720 ? 720 : widths.at(-1)}/${encodeURIComponent(name)}`,
-    srcset: widths.map((w) => `/img/${w}/${encodeURIComponent(name)} ${w}w`).join(', '),
+    src: `${base}/${widths.includes(720) && max >= 720 ? 720 : widths.at(-1)}/${encodeURIComponent(name)}`,
+    srcset: widths.map((w) => `${base}/${w}/${encodeURIComponent(name)} ${w}w`).join(', '),
     sizes,
   };
+}
+
+/** Pictures uploaded in the website dashboard (carousel, launches): same sizes, served from /mimg/. */
+export const mediaSet = (name, options = {}) => imageSet(name, { ...options, base: '/mimg' });
+
+/**
+ * A picture uploaded in the dashboard → a clean JPEG in data/media (turned the
+ * right way up, at most 2400 px). Returns its name, or null when it is not a picture.
+ */
+export async function storeUpload(buffer, mediaDir) {
+  const { createHash } = await import('node:crypto');
+  const { writeFileSync } = await import('node:fs');
+  if (!Buffer.isBuffer(buffer) || buffer.length < 12) return null;
+  const isJpeg = buffer[0] === 0xff && buffer[1] === 0xd8;
+  const isPng = buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+  const isWebp = buffer.subarray(0, 4).toString('latin1') === 'RIFF' && buffer.subarray(8, 12).toString('latin1') === 'WEBP';
+  if (!isJpeg && !isPng && !isWebp) return null;
+  let out = buffer;
+  let ext = isJpeg ? 'jpg' : isPng ? 'png' : 'webp';
+  if (sharp) {
+    try {
+      out = await sharp(buffer, { failOn: 'error' }).rotate().resize({ width: 2400, height: 2400, fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 86, mozjpeg: true }).toBuffer();
+      ext = 'jpg';
+    } catch {
+      return null;
+    }
+  }
+  const name = `m-${createHash('sha256').update(out).digest('hex').slice(0, 16)}.${ext}`;
+  writeFileSync(join(mediaDir, name), out);
+  return name;
 }

@@ -1,0 +1,68 @@
+/* Thobe World — website dashboard (/admin). Same palette as the shop. */
+:root{--ivory:#FBF8F2;--pearl:#fff;--sand:#EFE6D6;--linen:#E2D4BC;--hair:#E6DCCB;--gold:#C9A45C;--gold-deep:#8A6A2E;--ink:#1F1B16;--muted:#6B6255;--ok:#3D6B4F;--err:#9E3B2F;--r:12px}
+*{box-sizing:border-box;margin:0;padding:0}
+[hidden]{display:none!important}
+body{background:var(--ivory);color:var(--ink);font:15px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+a{color:var(--gold-deep)}
+img{max-width:100%;display:block}
+.wrap{max-width:1040px;margin:0 auto;padding:20px 16px 60px}
+.top{display:flex;flex-wrap:wrap;gap:10px 20px;align-items:center;justify-content:space-between;background:var(--ink);color:var(--ivory);padding:10px 16px}
+.top .brand{display:flex;gap:10px;align-items:center;color:var(--ivory);text-decoration:none;font-weight:600}
+.top nav{display:flex;flex-wrap:wrap;gap:4px 16px;align-items:center}
+.top nav a,.top nav .link{color:#E9D9B4;text-decoration:none;font-size:.95rem}
+.top nav a[aria-current]{color:#fff;border-bottom:2px solid var(--gold)}
+.top form{display:inline}
+.head{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin:8px 0 6px}
+h1{font-size:1.45rem}
+.muted{color:var(--muted)}.small{font-size:.85rem}
+p.muted{margin-bottom:16px;max-width:70ch}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--ink);background:var(--ink);color:var(--ivory);border-radius:999px;padding:9px 18px;font:inherit;font-weight:600;cursor:pointer;text-decoration:none;white-space:nowrap}
+.btn.line{background:transparent;color:var(--ink)}
+.btn.danger{background:transparent;color:var(--err);border-color:#e3c3bd}
+.btn.wa{background:#1f7a4d;border-color:#1f7a4d}
+.link{background:none;border:0;color:var(--gold-deep);font:inherit;cursor:pointer;text-decoration:underline}
+.icon{width:34px;height:34px;border-radius:50%;border:1px solid var(--linen);background:var(--pearl);cursor:pointer;font-size:1rem}
+.icon:disabled{opacity:.35;cursor:default}
+.card{background:var(--pearl);border:1px solid var(--hair);border-radius:var(--r);padding:18px;box-shadow:0 1px 2px rgba(31,27,22,.05)}
+.empty{text-align:center;color:var(--muted);padding:36px}
+.notice{border-radius:10px;padding:10px 14px;margin:6px 0 14px;font-weight:600}
+.notice.ok{background:#e5efe8;color:var(--ok)}.notice.err{background:#f6e3e0;color:var(--err)}
+.rows{list-style:none;display:grid;gap:10px}
+.row{display:flex;flex-wrap:wrap;gap:14px;align-items:center;background:var(--pearl);border:1px solid var(--hair);border-radius:var(--r);padding:10px}
+.row .grow{flex:1 1 220px;display:flex;flex-direction:column;gap:3px;min-width:0}
+.row .actions{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.row .actions form{display:inline}
+.thumb{width:84px;height:84px;object-fit:cover;border-radius:10px;background:var(--sand);flex:none}
+.thumb.wide{width:160px;height:68px}
+.thumb.none{display:grid;place-items:center;color:var(--gold)}
+.ar{font-size:1.05rem}
+.pill{align-self:flex-start;font-size:.8rem;font-weight:600;border-radius:999px;padding:2px 10px;background:var(--sand)}
+.pill.on{background:#e5efe8;color:var(--ok)}.pill.soon{background:#f5ecd9;color:var(--gold-deep)}.pill.off{background:#eee;color:#666}
+.form{display:grid;gap:14px;margin-top:10px}
+.cols{display:grid;gap:14px}
+@media(min-width:760px){.cols{grid-template-columns:1fr 1fr}}
+label,.field{display:flex;flex-direction:column;gap:5px;font-weight:600;font-size:.92rem}
+.label{font-weight:600}
+input,textarea,select{font:inherit;font-weight:400;border:1px solid var(--linen);border-radius:10px;padding:9px 11px;background:#fff;color:var(--ink);width:100%}
+textarea{resize:vertical}
+.check{flex-direction:row;align-items:flex-start;gap:9px;font-weight:500}
+.check input{width:auto;margin-top:4px}
+.drop{border:1.5px dashed var(--linen);border-radius:12px;padding:12px;display:grid;gap:8px;background:#fdfbf7}
+.drop img{max-height:220px;width:100%;object-fit:contain;border-radius:8px;background:var(--sand)}
+.drop.busy{opacity:.6}
+.bar{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.picker{border:1px solid var(--hair);border-radius:12px;padding:12px;display:grid;gap:10px}
+.picker legend{font-weight:600;padding:0 6px}
+.plist{display:grid;gap:8px;max-height:420px;overflow:auto;grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
+.pitem{flex-direction:row;align-items:center;gap:10px;font-weight:500;border:1px solid var(--hair);border-radius:10px;padding:6px;cursor:pointer}
+.pitem input{width:auto}
+.pitem img,.pitem .noimg{width:46px;height:56px;object-fit:cover;border-radius:6px;background:var(--sand);display:grid;place-items:center;color:var(--gold);flex:none}
+.pitem span{display:flex;flex-direction:column;min-width:0}
+.pitem:has(input:checked){border-color:var(--gold);background:#fbf5e8}
+.login{max-width:380px;margin:8vh auto 0;display:grid;gap:14px;text-align:center}
+.login img{margin:0 auto}
+.login label{text-align:start}
+pre{background:var(--sand);border-radius:8px;padding:10px;text-align:start;white-space:pre-wrap}
+.table{width:100%;border-collapse:collapse;background:var(--pearl);border:1px solid var(--hair);border-radius:var(--r);overflow:hidden}
+.table th,.table td{padding:9px 10px;border-bottom:1px solid var(--hair);text-align:start}
+.table th{background:var(--sand);font-size:.85rem}

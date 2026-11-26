@@ -12,10 +12,11 @@ import { pushDemo } from '../../scripts/fixtures.js';
 
 export const PORT = 8099;
 export const KEY = 'e2e-cle-de-synchronisation-0123456789abcdef';
+export const ADMIN_PASSWORD = 'e2e-tableau-de-bord-2026';
 
 export default async function globalSetup() {
   const dataDir = mkdtempSync(join(tmpdir(), 'thobe-e2e-'));
-  const config = loadConfig({ PORT: String(PORT), NEWSTORE_SYNC_KEY: KEY, DATA_DIR: dataDir, SITE_URL: `http://127.0.0.1:${PORT}`, APP_SECRET: 'e2e-secret' });
+  const config = loadConfig({ PORT: String(PORT), NEWSTORE_SYNC_KEY: KEY, DATA_DIR: dataDir, SITE_URL: `http://127.0.0.1:${PORT}`, APP_SECRET: 'e2e-secret', ADMIN_PASSWORD, ORDER_IP_MAX: '50' }); // every test customer orders from 127.0.0.1
   const { app, images } = createApp(config);
   const server = await new Promise((resolve) => {
     const s = app.listen(PORT, '127.0.0.1', () => resolve(s));
