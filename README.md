@@ -129,18 +129,19 @@ from `wkpdd/newstore`. A real browser plays the customer:
 - **Livraison**: switch Noest on, and Yalidine if you use it, with your tokens
   and prices. The site offers exactly that list.
 
-## Deploy (cPanel « Setup Node.js App »)
+## Deploy (cPanel shared hosting)
 
-1. Create a Node.js application (Node 20 or 22), application root e.g.
-   `thobe-world`, startup file `src/server.js`.
-2. Upload the repository (without `node_modules` and `data`), then
-   *Run NPM Install*.
-3. Set the environment variables from `.env.example`.
-4. Make `DATA_DIR` a folder **outside** the public web root and back it up. It
-   is the site's copy of H47 Pay's data, and H47 Pay can push it again
-   whenever needed.
-5. Run **one** process. `JsonFileSyncStorage` is one file owned by one process.
-   That is plenty for a shop with a few thousand articles.
+```bash
+npm run deploy            # build → upload → switch → verify, automatic rollback on failure
+npm run deploy:rollback   # back to the previous release, in seconds
+npm run deploy:status     # what is live and what you can roll back to
+```
+
+The cPanel « Setup Node.js App » runs a small switcher (`app.cjs`) that keeps
+the 5 latest releases side by side. H47 Pay's data stays in a shared `data/`
+folder that deploys never touch. Uploads go through cPanel's HTTPS API with an
+API token, or by FTP. The one-time setup and how it works are in
+**[docs/DEPLOY.md](docs/DEPLOY.md)**.
 
 > Algerian law 18-05 asks an online seller to show its commercial register
 > details and to host the site in Algeria under `.dz`. Fill `SHOP_RC`/`SHOP_NIF`
@@ -166,6 +167,7 @@ src/images.js       WebP sizes from the verbatim uploads, cached
 src/views/          server-rendered pages (layout, home, listing, product, cart, …)
 public/             css, small scripts, self-hosted fonts, communes of the 58 wilayas
 scripts/            demo catalogue (shaped exactly as H47 Pay sends it) and `npm run demo`
-test/               unit + Playwright end-to-end; test/newstore/site.ts = H47 Pay's client
+deploy/             `npm run deploy`: release build, cPanel/FTP upload, switcher (bootstrap.cjs), rollback
+test/               unit, deploy and Playwright end-to-end; test/newstore/site.ts = H47 Pay's client
 design/  brand/  docs/   mockup, palette, logo, plan
 ```

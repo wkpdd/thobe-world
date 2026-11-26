@@ -9,14 +9,23 @@
  */
 import { existsSync, mkdirSync, renameSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import sharp from 'sharp';
+
+/**
+ * sharp ships native code. If the host cannot load it (very old glibc), the
+ * shop keeps working: /img/… redirects to the original photo instead.
+ */
+const sharp = await import('sharp').then((m) => m.default).catch((error) => {
+  console.error(`sharp unavailable, photos are served unresized: ${error.message.split('\n')[0]}`);
+  return null;
+});
+export const imagesEnabled = sharp !== null;
 
 export const WIDTHS = [160, 320, 480, 720, 960, 1280];
 const WARM_WIDTHS = [320, 480, 720, 960];
 const NAME = /^[A-Za-z0-9._-]{1,120}$/u;
 
-sharp.cache(false);
-sharp.concurrency(1); // shared hosting: one libvips thread per resize is plenty
+sharp?.cache(false);
+sharp?.concurrency(1); // shared hosting: one libvips thread per resize is plenty
 
 export class ImageOptimizer {
   constructor({ uploadsDir, cacheDir }) {
@@ -60,7 +69,7 @@ export class ImageOptimizer {
 
   /** Queue the usual sizes for a new upload, one at a time, after the sync answered. */
   warm(name) {
-    if (!NAME.test(name)) return;
+    if (!imagesEnabled || !NAME.test(name)) return;
     for (const width of WARM_WIDTHS) {
       this.queue = this.queue.then(() => this.get(width, name)).catch(() => {});
     }

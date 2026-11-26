@@ -14,7 +14,7 @@ import { SyncReceiver, JsonFileSyncStorage, fixedKeyring, DELIVERY_CHECKOUT_JS }
 import { createExpressHandler } from '@h47io/sync-receiver/express';
 import { assetVersions } from './assets.js';
 import { Catalogue, filterProducts, search, categoryName, productPath } from './catalogue.js';
-import { ImageOptimizer, uploadName } from './images.js';
+import { ImageOptimizer, imagesEnabled, uploadName } from './images.js';
 import { LANGS, t } from './i18n.js';
 import { OrderDesk, validateOrder } from './orders.js';
 import { homePage, listingPage, cartPage, checkoutPage, thanksPage, trackPage, staticPage, notFoundPage } from './views/pages.js';
@@ -91,6 +91,7 @@ export function createApp(config) {
   app.use('/uploads', express.static(storage.uploadsDir, { index: false, maxAge: YEAR * 1000, immutable: true }));
   // Optimised WebP sizes.
   app.get('/img/:width/:name', async (req, res, next) => {
+    if (!imagesEnabled) return res.redirect(302, `/uploads/${encodeURIComponent(req.params.name)}`);
     try {
       const file = await images.get(Number(req.params.width), req.params.name);
       if (!file) return next();
@@ -258,7 +259,9 @@ export function createApp(config) {
   app.get('/health', (_req, res) => {
     const data = storage.shopData();
     res.setHeader('Cache-Control', 'no-store');
-    res.json({ ok: true, products: data.products.length, orders: data.orders.length, deliveryOptions: data.deliveryOptions?.length ?? null, syncKey: config.syncKey !== '' });
+    res.json({ ok: true, products: data.products.length, orders: data.orders.length, deliveryOptions: data.deliveryOptions?.length ?? null, syncKey: config.syncKey !== '',
+      // Set by deploy/bootstrap.cjs on cPanel: which release answers, and whether it is a fallback.
+      release: process.env.TW_RELEASE ?? null, fallback: process.env.TW_RELEASE_FALLBACK === '1', images: imagesEnabled ? 'webp' : 'original' });
   });
 
   // 7. 404 and errors.

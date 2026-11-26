@@ -11,9 +11,14 @@
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "demo": "node scripts/demo.js",
-    "test": "npm run test:unit && npm run test:e2e",
+    "test": "npm run test:unit && npm run test:deploy && npm run test:e2e",
     "test:unit": "node --test test/unit/*.test.js",
-    "test:e2e": "playwright test --trace off"
+    "test:deploy": "node --test --test-concurrency=1 test/deploy/*.test.js",
+    "test:e2e": "playwright test --trace off",
+    "deploy": "node deploy/cli.js deploy",
+    "deploy:rollback": "node deploy/cli.js rollback",
+    "deploy:status": "node deploy/cli.js status",
+    "deploy:check": "node deploy/cli.js check"
   },
   "dependencies": {
     "@h47io/sync-receiver": "1.3.0",
@@ -22,6 +27,7 @@
     "sharp": "0.35.5"
   },
   "devDependencies": {
-    "@playwright/test": "1.63.0"
+    "@playwright/test": "1.63.0",
+    "basic-ftp": "6.2.6"
   }
 }
