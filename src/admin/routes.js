@@ -4,9 +4,12 @@ import { storeUpload, mediaSet } from '../images.js';
 import { AdminAuth } from './auth.js';
 import { parseAlgiers } from '../content.js';
 import { clientIp } from '../client-ip.js';
-import { launchForm, launchesPage, loginPage, slideForm, slidesPage, subscribersCsv, subscribersPage, trackingPage } from './views.js';
+import { launchForm, launchesPage, loginPage, slideForm, slidesPage, statsPage, subscribersCsv, subscribersPage, trackingPage } from './views.js';
+import { statsBody, statsCsv } from './stats-views.js';
+import { buildReport } from '../report.js';
+import { insights } from '../insights.js';
 
-export function adminRouter({ config, content, catalogue, assets, images }) {
+export function adminRouter({ config, content, catalogue, assets, images, stats, storage }) {
   const auth = new AdminAuth({
     user: config.admin.user,
     password: config.admin.password,
@@ -57,7 +60,7 @@ export function adminRouter({ config, content, catalogue, assets, images }) {
     const cookie = auth.login(ip, req.body?.user, req.body?.password);
     if (!cookie) return send(res, loginPage({ assets, error: 'Identifiant ou mot de passe incorrect.' }), 401);
     res.setHeader('Set-Cookie', cookie);
-    return res.redirect(303, '/admin/carrousel');
+    return res.redirect(303, '/admin/statistiques');
   });
   router.post('/logout', (_req, res) => {
     res.setHeader('Set-Cookie', auth.logout());
@@ -71,7 +74,31 @@ export function adminRouter({ config, content, catalogue, assets, images }) {
     return res.status(401).json({ ok: false, message: 'Session expirée : reconnectez-vous.' });
   });
 
-  router.get('/', (_req, res) => res.redirect(303, '/admin/carrousel'));
+  router.get('/', (_req, res) => res.redirect(303, '/admin/statistiques'));
+
+  // ---- Statistics -------------------------------------------------------------------
+  const periodOfQuery = (req) => ([7, 30, 90, 365].includes(Number(req.query.p)) ? Number(req.query.p) : 30);
+  const reportFor = (req) => buildReport({ stats, storage, catalogue, content, days: periodOfQuery(req) });
+  router.get('/statistiques', (req, res) => {
+    stats.flush();
+    const report = reportFor(req);
+    send(res, statsPage({ assets, body: statsBody({ report, ideas: insights(report), period: periodOfQuery(req), ip: clientIp(req) }) }));
+  });
+  router.get('/statistiques.json', (req, res) => {
+    const report = reportFor(req);
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Content-Disposition', `attachment; filename="statistiques-${report.period.from}-${report.period.to}.json"`);
+    res.json({ ...report, ideas: insights(report) });
+  });
+  router.get('/statistiques.csv', (req, res, next) => {
+    const report = reportFor(req);
+    const table = String(req.query.t ?? 'jours');
+    const csv = statsCsv(report, table);
+    if (!csv) return next();
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Content-Disposition', `attachment; filename="${table}-${report.period.from}-${report.period.to}.csv"`);
+    return res.type('text/csv; charset=utf-8').send(csv);
+  });
 
   // Pictures: the browser sends the file as the request body.
   router.post('/media', express.raw({ type: ['image/jpeg', 'image/png', 'image/webp'], limit: '15mb' }), async (req, res) => {

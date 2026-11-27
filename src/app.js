@@ -28,6 +28,9 @@ import { launchPage } from './views/launch.js';
 import { normalizePhone } from './orders.js';
 import { clientIp, WindowCounter } from './client-ip.js';
 import { SyncError } from '@h47io/sync-receiver';
+import { Stats } from './stats.js';
+import { buildReport } from './report.js';
+import { insights } from './insights.js';
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const PUBLIC = join(ROOT, 'public');
@@ -55,6 +58,8 @@ export function createApp(baseConfig) {
   const images = new ImageOptimizer({ uploadsDir: storage.uploadsDir, cacheDir: join(config.dataDir, 'cache') });
   // What the shop manages on the website itself (/admin): carousel, launches, « prévenez-moi ».
   const content = new ContentStore({ dir: config.dataDir });
+  // The shop's own statistics (counts only, no cookie, no IP kept): see src/stats.js.
+  const stats = new Stats({ dir: config.dataDir, ownHost: new URL(config.siteUrl).host });
   const mediaImages = new ImageOptimizer({ uploadsDir: content.mediaDir, cacheDir: join(config.dataDir, 'cache', 'media') });
 
   // A new photo from H47 Pay → its WebP sizes are prepared right after the sync answers.
@@ -167,7 +172,7 @@ export function createApp(baseConfig) {
   });
 
   // The website dashboard. Its own pages, its own login; never cached, never indexed.
-  app.use('/admin', adminRouter({ config, content, catalogue, assets, images: mediaImages }));
+  app.use('/admin', adminRouter({ config, content, catalogue, assets, images: mediaImages, stats, storage }));
 
   // 3. Language: ?lang=fr|ar sets a cookie; Arabic by default.
   app.use((req, res, next) => {
@@ -225,6 +230,7 @@ export function createApp(baseConfig) {
     const s = t(ctx.lang);
     const query = typeof req.query.q === 'string' ? req.query.q.slice(0, 80) : '';
     const items = search(catalogue.snapshot().products, query);
+    if (query) stats.search(query, items.length > 0, { ua: String(req.headers['user-agent'] ?? '') });
     page(res, listingPage(ctx, { title: s.searchResults, heading: query ? `${s.searchResults} : « ${query} »` : s.search, items, all: items, canonical: '/recherche', showFilters: false, searchQuery: query, crumbsItems: [{ href: '/', label: s.home }, { label: s.search }] }));
   });
 
@@ -376,6 +382,57 @@ export function createApp(baseConfig) {
     return res.json({ ok: true, message: result.already ? s.launch.notifyAlready : s.launch.notifyDone });
   });
 
+  // Statistics beacon (public/js/site.js): a page seen, or a step of the funnel. Counts only.
+  const beaconHits = new WindowCounter({ windowMs: 10 * 60_000, max: 300 });
+  app.post('/api/e', express.text({ type: () => true, limit: '2kb' }), (req, res) => {
+    res.status(204).setHeader('Cache-Control', 'no-store');
+    const ip = clientIp(req);
+    if (ip && beaconHits.full(ip)) return res.end();
+    if (ip) beaconHits.hit(ip);
+    let body;
+    try {
+      body = JSON.parse(typeof req.body === 'string' ? req.body : '{}');
+    } catch {
+      return res.end();
+    }
+    const who = { ip, ua: String(req.headers['user-agent'] ?? '').slice(0, 300) };
+    if (body?.t === 'pv') {
+      const path = typeof body.p === 'string' && body.p.startsWith('/') && !body.p.startsWith('/admin') ? body.p.split('?')[0].slice(0, 120) : null;
+      if (!path) return res.end();
+      const product = typeof body.x === 'string' ? catalogue.snapshot().byExternalId.get(body.x) : null;
+      const launch = /^\/lancement\/([a-z0-9-]+)$/u.exec(path)?.[1];
+      const utm = body.u && typeof body.u === 'object' ? { source: String(body.u.s ?? '').slice(0, 40), medium: String(body.u.m ?? '').slice(0, 40), campaign: String(body.u.c ?? '').slice(0, 60) } : {};
+      stats.pageView({
+        path,
+        referrer: typeof body.r === 'string' ? body.r.slice(0, 300) : '',
+        utm,
+        lang: body.l === 'fr' ? 'fr' : 'ar',
+        product: product?.externalId ?? null,
+        soldOut: product ? product.stock <= 0 : false,
+        launch: launch && content.launchBySlug(launch) ? launch : null,
+      }, who);
+    } else if (body?.t === 'ev') {
+      const product = typeof body.x === 'string' && catalogue.snapshot().byExternalId.has(body.x) ? body.x : null;
+      const slide = typeof body.s === 'string' && content.slide(body.s) ? body.s : null;
+      stats.event(String(body.n ?? ''), { product, slide }, who);
+    }
+    return res.end();
+  });
+
+  // The same report as the dashboard, for H47 Pay or the hub: counts and amounts only, with the sync key.
+  app.get('/api/stats.json', async (req, res, next) => {
+    try {
+      await receiver.authenticate({ headers: req.headers });
+    } catch (error) {
+      if (error instanceof SyncError) return res.status(error.status).json(error.toBody());
+      return next(error);
+    }
+    const days = Math.min(366, Math.max(1, Number.parseInt(String(req.query.days ?? '30'), 10) || 30));
+    const report = buildReport({ stats, storage, catalogue, content, days });
+    res.setHeader('Cache-Control', 'no-store');
+    return res.json({ ...report, ideas: insights(report) });
+  });
+
   // 6. Search engines and health.
   app.get('/robots.txt', (_req, res) => {
     res.type('text/plain').send(`User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /panier\nDisallow: /commande\nDisallow: /merci/\nDisallow: /admin\nSitemap: ${config.siteUrl}/sitemap.xml\n`);
@@ -395,6 +452,7 @@ export function createApp(baseConfig) {
   app.use((req, res) => {
     if (!res.locals.ctx) return res.status(404).end();
     if (req.path.startsWith('/api/')) return res.status(404).json({ ok: false });
+    stats.notFound(req.path, { ua: String(req.headers['user-agent'] ?? '') });
     return page(res, notFoundPage(res.locals.ctx), 404);
   });
   app.use((error, req, res, _next) => {
@@ -408,6 +466,6 @@ export function createApp(baseConfig) {
     res.status(status).type('text/plain').send(status === 500 ? 'Erreur interne. Réessayez dans un instant.' : 'Requête invalide.');
   });
 
-  return { app, storage, catalogue, images, desk, receiver, content };
+  return { app, storage, catalogue, images, desk, receiver, content, stats };
 }
 

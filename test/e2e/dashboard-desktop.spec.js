@@ -60,7 +60,8 @@ test('2. the owner signs in and builds a two-slide carousel', async ({ browser }
   await admin.locator('input[name=user]').fill('admin');
   await admin.locator('input[name=password]').fill(ADMIN_PASSWORD);
   await admin.getByRole('button', { name: 'Se connecter' }).click();
-  await expect(admin).toHaveURL(/\/admin\/carrousel$/u);
+  await expect(admin).toHaveURL(/\/admin\/statistiques$/u); // the dashboard opens on its statistics
+  await admin.getByRole('link', { name: 'Carrousel' }).click();
   await expect(admin.locator('.card.empty')).toContainText('Aucune diapositive');
 
   await admin.getByRole('link', { name: '+ Ajouter une diapositive' }).click();

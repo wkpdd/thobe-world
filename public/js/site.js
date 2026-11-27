@@ -51,9 +51,20 @@
     toastTimer = setTimeout(function () { el.classList.remove('show'); }, 2600);
   }
 
-  /** Meta / TikTok / GA events, only when the pixel is configured. */
+  /** The shop's own statistics (no cookie, counts only): see src/stats.js. */
+  function beacon(payload) {
+    try {
+      var body = JSON.stringify(payload);
+      if (navigator.sendBeacon) navigator.sendBeacon('/api/e', body);
+      else fetch('/api/e', { method: 'POST', body: body, keepalive: true });
+    } catch (e) { /* statistics never break the shop */ }
+  }
+  var OWN = { AddToCart: 'add_to_cart', InitiateCheckout: 'begin_checkout', Lead: 'notify' };
+
+  /** Meta / TikTok / GA events, only when the pixel is configured; and our own count. */
   function track(name, data) {
     data = data || {};
+    if (OWN[name]) beacon({ t: 'ev', n: OWN[name], x: data.id || undefined });
     try {
       if (TW.pixels && TW.pixels.meta && window.fbq) {
         window.fbq('track', name, { value: data.value, currency: data.currency || 'DZD', content_ids: data.id ? [data.id] : undefined, content_name: data.contentName, content_type: 'product' }, data.eventId ? { eventID: data.eventId } : undefined);
@@ -77,6 +88,19 @@
 
   document.addEventListener('DOMContentLoaded', function () {
     count();
+    var params = new URLSearchParams(location.search);
+    var P = window.TW_PRODUCT;
+    beacon({
+      t: 'pv',
+      p: location.pathname,
+      r: document.referrer,
+      l: TW.lang,
+      x: P ? P.externalId : undefined,
+      u: params.get('utm_source') ? { s: params.get('utm_source'), m: params.get('utm_medium'), c: params.get('utm_campaign') } : undefined,
+    });
+    document.querySelectorAll('[data-slide-id]').forEach(function (a) {
+      a.addEventListener('click', function () { beacon({ t: 'ev', n: 'slide_click', s: a.getAttribute('data-slide-id') }); });
+    });
     (TW.events || []).forEach(function (e) { track(e.name, Object.assign({ eventId: e.id }, e)); });
     var drawer = document.querySelector('[data-drawer]');
     document.querySelectorAll('[data-open-drawer]').forEach(function (b) { b.addEventListener('click', function () { drawer.classList.add('open'); }); });

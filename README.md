@@ -80,7 +80,28 @@ H47 Pay. Two things are managed on the website itself, at
   « حصري · كمية محدودة » and the pieces left. An optional **maximum per
   customer** counts every order from the same phone number.
 
-- **Publicité**: the Meta (Facebook & Instagram) pixel, the TikTok pixel,
+- **Statistiques** (the dashboard's home page): the site's own figures for 7
+  days, 30 days, 90 days or 12 months, compared with the period before. No
+  cookie is used, no IP address is kept and nothing is sent to anyone; each
+  day is one small file of counts in `data/stats/`.
+  - **Traffic:** visitors, pages, sources (Instagram, Facebook, TikTok,
+    WhatsApp, Google…), `utm_` campaigns, devices, in-app browsers, languages,
+    and visits by hour.
+  - **Path to the order:** visitors → article viewed → cart → order form →
+    order.
+  - **Per article:** views, cart adds, orders, revenue, conversion, and views
+    while sold out.
+  - **Searches:** with the ones that found nothing.
+  - **Sales,** from H47 Pay's orders: revenue, average order, statuses and
+    confirmation, cancellation and return rates, wilayas, couriers, home or
+    stop desk, sizes, colours, new or returning customers, and orders by hour
+    and by day.
+  - **« Idées »:** what the figures suggest doing, such as what to stock,
+    which article to check, when to post, or which wilaya returns parcels.
+  - **Exports:** JSON and CSV. The same report is served to H47 Pay or the hub
+    at `GET /api/stats.json?days=30` with the `X-NewStore-Key` header. It
+    contains only counts and amounts: no name, phone or address.
+ (Facebook & Instagram) pixel, the TikTok pixel,
   Google Analytics 4 and an optional Google Ads « Achat » conversion. Paste
   the ID or the whole code Meta, TikTok or Google gives you, and the
   dashboard keeps only the ID. It takes effect at once, with no redeploy.

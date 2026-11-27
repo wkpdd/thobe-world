@@ -25,6 +25,7 @@ function page({ title, body, nav = true, active = '', notice = '', error = '', a
 ${nav ? html`<header class="top">
   <a class="brand" href="/admin"><img src="/img/favicon.svg" alt="" width="28" height="28"><span>Tableau de bord</span></a>
   <nav>
+    <a href="/admin/statistiques"${active === 'stats' ? raw(' aria-current="page"') : ''}>Statistiques</a>
     <a href="/admin/carrousel"${active === 'slides' ? raw(' aria-current="page"') : ''}>Carrousel</a>
     <a href="/admin/lancements"${active === 'launches' ? raw(' aria-current="page"') : ''}>Lancements</a>
     <a href="/admin/publicite"${active === 'ads' ? raw(' aria-current="page"') : ''}>Publicité</a>
@@ -251,3 +252,5 @@ export function trackingPage({ assets, tracking, pixels, errors = {}, notice }) 
   </div>`;
   return page({ title: 'Publicité', body, active: 'ads', notice, error: Object.keys(errors).length ? 'Corrigez les champs signalés.' : '', assets });
 }
+
+export const statsPage = ({ assets, body }) => page({ title: 'Statistiques', body, active: 'stats', assets });

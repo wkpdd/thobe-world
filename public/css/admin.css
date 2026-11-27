@@ -63,7 +63,7 @@ textarea{resize:vertical}
 .login img{margin:0 auto}
 .login label{text-align:start}
 pre{background:var(--sand);border-radius:8px;padding:10px;text-align:start;white-space:pre-wrap}
-.table{width:100%;border-collapse:collapse;background:var(--pearl);border:1px solid var(--hair);border-radius:var(--r);overflow:hidden}
+.table{width:100%;border-collapse:separate;border-spacing:0;background:var(--pearl);border:1px solid var(--hair);border-radius:var(--r);overflow:hidden}
 .table th,.table td{padding:9px 10px;border-bottom:1px solid var(--hair);text-align:start}
 .table th{background:var(--sand);font-size:.85rem}
 .pixel{display:grid;gap:4px}
@@ -72,3 +72,35 @@ pre{background:var(--sand);border-radius:8px;padding:10px;text-align:start;white
 .card.events{margin-top:16px}
 .card.events h2{font-size:1.1rem;margin-bottom:8px}
 .card.events p{margin-top:10px}
+
+/* statistics */
+.tabs{display:flex;gap:4px;background:var(--sand);border-radius:999px;padding:4px}
+.tabs a{padding:6px 14px;border-radius:999px;text-decoration:none;color:var(--ink);font-size:.9rem}
+.tabs a[aria-current]{background:var(--ink);color:var(--ivory)}
+.tiles{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));margin:6px 0 16px}
+.tile{background:var(--pearl);border:1px solid var(--hair);border-radius:var(--r);padding:12px 14px;display:grid;gap:2px}
+.tile .lbl{color:var(--muted);font-size:.85rem}
+.tile b{font-size:1.5rem;font-variant-numeric:tabular-nums}
+.tile .vs{font-size:.78rem;color:var(--muted)}
+.delta{font-weight:700}
+.delta.up{color:var(--ok)}.delta.down{color:var(--err)}
+.grid2,.grid3{display:grid;gap:14px;margin-top:14px}
+@media(min-width:900px){.grid2{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.grid3{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.grid2>.card,.grid3>.card{min-width:0;overflow-x:auto}
+section.card{margin-top:14px}
+.card h2{font-size:1.05rem;margin-bottom:8px}
+.card h3{font-size:.95rem;margin:14px 0 6px}
+.chart{width:100%;height:auto;display:block}
+.table .num{text-align:end;font-variant-numeric:tabular-nums;white-space:nowrap}
+
+.meter{width:140px;height:8px;display:block;margin-inline-start:auto}
+@media(max-width:600px){.meter{width:64px}}
+.table.rank td,.table.funnel td{padding:6px 8px}
+.table .meter-cell{width:1%}
+.scroll{overflow-x:auto}
+.ideas{list-style:none;display:grid;gap:8px}
+.idea{display:grid;gap:2px;border:1px solid var(--hair);border-inline-start:4px solid var(--gold);border-radius:10px;padding:10px 12px;background:#fdfbf7}
+.idea .tag{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--gold-deep);font-weight:700}
+code{background:var(--sand);border-radius:4px;padding:1px 5px;font-size:.88em}
+.table tr:last-child td{border-bottom:0}
+.grid3 .meter{width:56px}

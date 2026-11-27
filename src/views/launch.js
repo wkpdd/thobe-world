@@ -119,7 +119,7 @@ export function carousel(ctx, slides) {
         <img src="${desktop.src}" srcset="${desktop.srcset}" sizes="100vw" alt="${heading}" width="1920" height="800"${i === 0 ? raw(' fetchpriority="high"') : raw(' loading="lazy"')} decoding="async">
       </picture>
       ${heading || sub || button ? html`<div class="cap"><div class="wrap">${heading ? html`<h2>${heading}</h2>` : ''}${sub ? html`<p>${sub}</p>` : ''}${button && slide.link ? html`<span class="btn btn-gold">${button}</span>` : ''}</div></div>` : ''}`;
-      return html`<div class="slide${mobile ? ' has-mobile' : ''}" role="group" aria-roledescription="slide" aria-label="${i + 1} / ${slides.length}">${slide.link ? html`<a href="${slide.link}">${inner}</a>` : inner}</div>`;
+      return html`<div class="slide${mobile ? ' has-mobile' : ''}" role="group" aria-roledescription="slide" aria-label="${i + 1} / ${slides.length}">${slide.link ? html`<a href="${slide.link}" data-slide-id="${slide.id}">${inner}</a>` : inner}</div>`;
     })}
   </div>
   ${slides.length > 1 ? html`<button class="nav prev" type="button" data-prev aria-label="${lang === 'fr' ? 'Précédent' : 'السابق'}">‹</button><button class="nav next" type="button" data-next aria-label="${lang === 'fr' ? 'Suivant' : 'التالي'}">›</button>
