@@ -2,6 +2,9 @@ import { loadConfig } from './config.js';
 import { createApp } from './app.js';
 
 const config = loadConfig();
+if (config.syncKey && config.syncKey.length < 24) {
+  console.warn('NEWSTORE_SYNC_KEY est courte (moins de 24 caractères) : choisissez une clé longue et aléatoire.');
+}
 if (!config.syncKey) {
   console.warn('NEWSTORE_SYNC_KEY est vide : /api/sync.php répondra « non configuré » tant qu’aucune clé n’est définie.');
 }

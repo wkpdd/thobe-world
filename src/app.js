@@ -66,6 +66,8 @@ export function createApp(baseConfig) {
   };
 
   const receiver = new SyncReceiver({
+    exposeInternalDetail: false, // an unexpected error is logged here, never described to the caller
+    onInternalError: (error) => console.error('sync:', error),
     keyring: fixedKeyring({ key: config.syncKey, site: new URL(config.siteUrl).host }),
     storage,
   });
@@ -345,6 +347,11 @@ export function createApp(baseConfig) {
     }
     const token = desk.sign(result.orderGroup);
     const ref = encodeURIComponent(result.orderGroup);
+    // The same basket from the same phone, sent again: only the browser that placed it (it holds
+    // that page's cookie) is taken to the summary; anyone else just learns it is already received.
+    if (result.duplicate && !new RegExp(`(?:^|;\\s*)${merciCookie(result.orderGroup)}=${token}`, 'u').test(req.headers.cookie ?? '')) {
+      return res.status(200).json({ ok: true, duplicate: true, message: s.duplicate });
+    }
     res.setHeader('Set-Cookie', `${merciCookie(result.orderGroup)}=${token}; Path=/merci/${ref}; Max-Age=2592000; HttpOnly; SameSite=Lax${config.siteUrl.startsWith('https://') ? '; Secure' : ''}`);
     return res.status(result.status).json({
       ok: true,

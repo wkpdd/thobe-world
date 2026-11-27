@@ -181,7 +181,15 @@
       .then(function (res) {
         if (res.body && res.body.ok) {
           if (mode === 'cart') window.TWSite.cart.clear();
-          window.location.href = res.body.redirect;
+          if (res.body.redirect) {
+            window.location.href = res.body.redirect;
+            return;
+          }
+          // Already received earlier (from another device): say so, nothing else to show.
+          button.textContent = label;
+          top.textContent = res.body.message || '';
+          top.classList.add('show');
+          top.scrollIntoView({ behavior: 'smooth', block: 'center' });
           return;
         }
         button.disabled = false;

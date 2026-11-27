@@ -43,7 +43,7 @@ export function validateOrder(body) {
   const lines = Array.isArray(body?.lines) ? body.lines.slice(0, 30) : [];
   for (const line of lines) {
     const externalId = clean(line?.externalId, 64);
-    const quantity = Number.parseInt(String(line?.quantity ?? ''), 10);
+    const quantity = /^\d{1,3}$/u.test(String(line?.quantity ?? '').trim()) ? Number(String(line.quantity).trim()) : Number.NaN;
     if (!externalId || !Number.isInteger(quantity) || quantity < 1 || quantity > 50) continue;
     const color = line?.color === undefined || line?.color === null || line?.color === '' ? null : clean(line.color, 60);
     const size = line?.size === undefined || line?.size === null || line?.size === '' ? null : clean(line.size, 30);

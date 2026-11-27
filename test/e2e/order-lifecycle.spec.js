@@ -76,15 +76,17 @@ test('3. H47 Pay pulls the order: every key it needs, exactly', async () => {
 });
 
 test('4. the same order sent twice does not reach the shop twice', async ({ page }) => {
+  // Sent again from another browser (this test's is fresh): it is recognised, and that browser,
+  // which did not place it, is told so without being shown the order's summary.
   await page.goto('/p/qamis-sultan-lin-1');
   await page.locator('[data-size="54"]').click();
   await page.locator('[data-qty="1"]').click();
   await fillCustomer(page, { wilaya: 16, carrier: 'yalidine', option: 'stopdesk', commune: 'Bab Ezzouar' });
   await page.locator('[data-submit]').click();
-  await page.waitForURL(/\/merci\//u);
-  await expect(page.locator('[data-order-ref]')).toHaveText(reference);
-  await expect(page.locator('.pill').first()).toContainText('استلمنا هذا الطلب من قبل');
+  await expect(page.locator('[data-form-error]')).toContainText('استلمنا هذا الطلب من قبل');
+  expect(page.url()).not.toContain('/merci/');
   expect((await allOrders()).filter((r) => r.phone === CUSTOMER.normalized)).toHaveLength(1);
+  expect((await page.goto(`/merci/${reference}`)).status()).toBe(404); // no summary without that order's own cookie
 });
 
 test('5. H47 Pay confirms and moves the stock: the site follows', async ({ page }) => {
