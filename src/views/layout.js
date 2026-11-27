@@ -24,7 +24,10 @@ export function layout(ctx, { title, description, body, canonical, image, jsonLd
   const cats = catalogue.snapshot().categories;
   const other = lang === 'fr' ? 'ar' : 'fr';
   const switchHref = `${path}${path.includes('?') ? '&' : '?'}lang=${other}`;
-  const pixels = config.pixels;
+  // The dashboard's « Publicité » IDs, or cPanel's (META_PIXEL_ID, …) for any left empty there.
+  const px = ctx.pixels ?? { meta: { id: config.pixels.meta }, tiktok: { id: config.pixels.tiktok }, ga: { id: config.pixels.ga }, ads: { id: '', label: '' } };
+  const pixels = { meta: px.meta.id, tiktok: px.tiktok.id, ga: px.ga.id, ads: px.ads.id, adsLabel: px.ads.label };
+  const gtagId = pixels.ga || pixels.ads;
 
   return html`<!doctype html>
 <html lang="${lang}" dir="${s.dir}">
@@ -53,7 +56,7 @@ ${noindex ? raw('<meta name="robots" content="noindex">') : ''}
 ${jsonLd ? html`<script type="application/ld+json">${jsonForScript(jsonLd)}</script>` : ''}
 ${pixels.meta ? raw(`<script>!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init',${JSON.stringify(pixels.meta)});fbq('track','PageView');</script>`) : ''}
 ${pixels.tiktok ? raw(`<script>!function(w,d,t){w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=["page","track","identify","instances","debug","on","off","once","ready","alias","group","enableCookie","disableCookie"],ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);ttq.load=function(e){var i="https://analytics.tiktok.com/i18n/pixel/events.js";ttq._i=ttq._i||{},ttq._i[e]=[],ttq._i[e]._u=i,ttq._t=ttq._t||{},ttq._t[e]=+new Date,ttq._o=ttq._o||{};var o=document.createElement("script");o.type="text/javascript",o.async=!0,o.src=i+"?sdkid="+e+"&lib="+t;var a=document.getElementsByTagName("script")[0];a.parentNode.insertBefore(o,a)};ttq.load(${JSON.stringify(pixels.tiktok)});ttq.page();}(window,document,'ttq');</script>`) : ''}
-${pixels.ga ? raw(`<script async src="https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(pixels.ga)}"></script><script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config',${JSON.stringify(pixels.ga)});</script>`) : ''}
+${gtagId ? raw(`<script async src="https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(gtagId)}"></script><script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());${[pixels.ga, pixels.ads].filter(Boolean).map((id) => `gtag('config',${JSON.stringify(id)});`).join('')}</script>`) : ''}
 </head>
 <body class="${bodyClass}">
 <a class="skip" href="#main">${lang === 'fr' ? 'Aller au contenu' : 'انتقل إلى المحتوى'}</a>
@@ -97,7 +100,7 @@ ${body}
 ${footer(ctx)}
 <a class="wa-float" href="https://wa.me/${shop.whatsapp}" target="_blank" rel="noopener" aria-label="${s.whatsappUs}">${icon('whatsapp')}</a>
 <div class="toast" role="status" aria-live="polite" data-toast></div>
-<script>window.TW=${jsonForScript({ lang, s: clientStrings(lang), pixels: { meta: !!pixels.meta, tiktok: !!pixels.tiktok, ga: !!pixels.ga }, events: pixelEvents })};</script>
+<script>window.TW=${jsonForScript({ lang, s: clientStrings(lang), pixels: { meta: !!pixels.meta, tiktok: !!pixels.tiktok, ga: !!pixels.ga, adsPurchase: pixels.ads && pixels.adsLabel ? `${pixels.ads}/${pixels.adsLabel}` : null }, events: pixelEvents })};</script>
 <script src="${assets.url('js/site.js')}" defer></script>
 ${pageScripts.map((src) => html`<script src="${assets.url(src)}" defer></script>`)}
 </body>

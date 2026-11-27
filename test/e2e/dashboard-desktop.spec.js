@@ -33,6 +33,14 @@ const order = (page, quantity, size = '56') => page.evaluate(async ([q, z]) => {
   return { status: res.status, ...(await res.json()) };
 }, [quantity, size]);
 
+/** The real Meta/TikTok/Google scripts are not fetched in tests: the pages' own queues are what we check. */
+const stubAdScripts = (page) => page.route(/connect\.facebook\.net|analytics\.tiktok\.com|googletagmanager\.com/u, (route) => route.fulfill({ status: 200, contentType: 'text/javascript', body: '' }));
+const queues = (page) => page.evaluate(() => ({
+  fbq: (window.fbq?.queue ?? []).map((a) => Array.from(a)),
+  ttq: Array.isArray(window.ttq) ? window.ttq.map((a) => Array.from(a)) : [],
+  gtag: (window.dataLayer ?? []).map((a) => Array.from(a)),
+}));
+
 test('1. the dashboard is closed to strangers', async ({ page, request }) => {
   await page.goto('/admin/carrousel');
   await expect(page).toHaveURL(/\/admin\/login$/u);
@@ -163,7 +171,34 @@ test('5. the owner sees who asked, with a WhatsApp message ready', async () => {
   expect(await csv.text()).toContain('0770112233');
 });
 
+test('5b. the owner pastes the Meta, TikTok and Google codes; every page carries them at once', async ({ page }) => {
+  await admin.getByRole('link', { name: 'Publicité' }).click();
+  await expect(admin.locator('.pixel .pill.off')).toHaveCount(4);
+  await admin.locator('input[name=meta]').fill('nope');
+  await admin.getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(admin.locator('.pixel .notice.err')).toContainText('Un identifiant de pixel Meta');
+  await admin.locator('input[name=meta]').fill("<script>!function(f,b,e,v,n,t,s){}(window, document,'script','https://connect.facebook.net/en_US/fbevents.js'); fbq('init', '1234567890123456'); fbq('track', 'PageView');</script>");
+  await admin.locator('input[name=tiktok]').fill("ttq.load('C4ABCDEFGHIJKLMNOPQR'); ttq.page();");
+  await admin.locator('input[name=ga]').fill('G-AB12CD34EF');
+  await admin.locator('input[name=adsId]').fill('AW-987654321/AbCdEf_123');
+  await admin.getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(admin.locator('.notice.ok')).toContainText('Pixels enregistrés');
+  await expect(admin.locator('input[name=meta]')).toHaveValue('1234567890123456');
+  await expect(admin.locator('input[name=adsLabel]')).toHaveValue('AbCdEf_123');
+  await expect(admin.locator('.pixel .pill.on')).toHaveCount(4);
+
+  await stubAdScripts(page);
+  await page.goto('/');
+  const q = await queues(page);
+  expect(q.fbq).toContainEqual(['init', '1234567890123456']);
+  expect(q.fbq).toContainEqual(['track', 'PageView']);
+  expect(q.ttq).toContainEqual(['page']);
+  expect(q.gtag).toContainEqual(['config', 'G-AB12CD34EF']);
+  expect(q.gtag).toContainEqual(['config', 'AW-987654321']);
+});
+
 test('6. at the hour the launch opens: limited edition, 2 per customer', async ({ page }) => {
+  await stubAdScripts(page);
   await admin.goto('/admin/lancements');
   await admin.getByRole('link', { name: 'Modifier' }).click();
   await admin.locator('input[name=launchAt]').fill(inAlgiers(-60_000 * 2));
@@ -178,8 +213,17 @@ test('6. at the hour the launch opens: limited edition, 2 per customer', async (
   for (let i = 0; i < 4; i += 1) await page.locator('[data-qty="1"]').click();
   await expect(page.locator('[data-qty-value]')).toHaveText('2'); // capped at the per-customer limit
 
+  expect((await queues(page)).fbq.some((e) => e[0] === 'track' && e[1] === 'ViewContent')).toBe(true);
   const first = await order(page, 2);
   expect(first.status).toBe(201);
+  // the thank-you page reports the sale to every platform, Google Ads conversion included:
+  // 2 × 5 500 DA + 400 DA Noest home delivery to Algiers
+  await page.goto(first.redirect);
+  const sale = await queues(page);
+  expect(sale.fbq.find((e) => e[1] === 'Purchase')[2]).toMatchObject({ value: 11400, currency: 'DZD' });
+  expect(sale.ttq.some((e) => e[0] === 'track' && e[1] === 'CompletePayment')).toBe(true);
+  expect(sale.gtag.find((e) => e[0] === 'event' && e[1] === 'conversion')[2]).toMatchObject({ send_to: 'AW-987654321/AbCdEf_123', value: 11400, currency: 'DZD', transaction_id: first.orderGroup });
+  await page.goto(productUrl);
   const more = await order(page, 1, '58');
   expect(more.status).toBe(409);
   expect(more.code).toBe('launchMax');
@@ -197,12 +241,17 @@ test('7. removing the slides and the launch puts the site back as it was', async
     await admin.getByRole('button', { name: 'Supprimer' }).first().click();
     await expect(admin.locator('.notice.ok')).toHaveText('Diapositive supprimée.');
   }
+  await admin.goto('/admin/publicite');
+  for (const name of ['meta', 'tiktok', 'ga', 'adsId', 'adsLabel']) await admin.locator(`input[name=${name}]`).fill('');
+  await admin.getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(admin.locator('.pixel .pill.off')).toHaveCount(4);
   await admin.getByRole('button', { name: 'Déconnexion' }).click();
   await expect(admin).toHaveURL(/\/admin\/login$/u);
   await page.goto('/');
   await expect(page.locator('[data-carousel]')).toHaveCount(0);
   await expect(page.locator('section.hero')).toHaveCount(1);
   await expect(page.locator('.launch-strip')).toHaveCount(0);
+  expect(await page.evaluate(() => typeof window.fbq)).toBe('undefined'); // pixels emptied: nothing loads
   expect((await page.goto(launchUrl)).status()).toBe(404);
   await page.goto(productUrl);
   await expect(page.locator('[data-order-form]')).toHaveCount(1);

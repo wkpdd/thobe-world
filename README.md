@@ -80,6 +80,15 @@ H47 Pay. Two things are managed on the website itself, at
   « حصري · كمية محدودة » and the pieces left. An optional **maximum per
   customer** counts every order from the same phone number.
 
+- **Publicité**: the Meta (Facebook & Instagram) pixel, the TikTok pixel,
+  Google Analytics 4 and an optional Google Ads « Achat » conversion. Paste
+  the ID or the whole code Meta, TikTok or Google gives you, and the
+  dashboard keeps only the ID. It takes effect at once, with no redeploy.
+  A field left empty falls back to the cPanel variable, if there is one.
+  - Events sent: PageView, ViewContent, AddToCart, InitiateCheckout,
+    Purchase (with the Google Ads conversion), and Lead for « notify me ».
+  - Values are in DZD, and an order sent twice is counted once.
+
 To open the dashboard, set `ADMIN_PASSWORD` (12 characters or more, and
 optionally `ADMIN_USER`) in cPanel → Setup Node.js App → Environment variables,
 then click Restart. Its data is `data/site-content.json` and `data/media/`, in

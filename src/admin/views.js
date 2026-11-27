@@ -27,6 +27,7 @@ ${nav ? html`<header class="top">
   <nav>
     <a href="/admin/carrousel"${active === 'slides' ? raw(' aria-current="page"') : ''}>Carrousel</a>
     <a href="/admin/lancements"${active === 'launches' ? raw(' aria-current="page"') : ''}>Lancements</a>
+    <a href="/admin/publicite"${active === 'ads' ? raw(' aria-current="page"') : ''}>Publicité</a>
     <a href="/" target="_blank" rel="noopener">Voir le site ↗</a>
     <form method="post" action="/admin/logout"><button class="link" type="submit">Déconnexion</button></form>
   </nav>
@@ -208,3 +209,40 @@ export function subscribersPage({ assets, launch, subscribers, siteUrl, shopName
 
 export const subscribersCsv = (subscribers) =>
   `﻿nom;telephone;inscrit_le\n${subscribers.map((s) => [s.name, s.phone, s.at].map((v) => `"${String(v ?? '').replace(/"/gu, '""')}"`).join(';')).join('\n')}\n`;
+
+const pixelState = (p) => (p.id
+  ? html`<span class="pill on">Actif${p.source === 'cpanel' ? ' · défini dans cPanel' : ''}</span>`
+  : html`<span class="pill off">Désactivé</span>`);
+
+export function trackingPage({ assets, tracking, pixels, errors = {}, notice }) {
+  const field = ({ name, label, placeholder, help, state }) => html`<div class="pixel">
+    <label>${label} ${state ?? ''}<input name="${name}" value="${tracking[name] ?? ''}" placeholder="${placeholder}" autocomplete="off" spellcheck="false" dir="ltr"></label>
+    ${errors[name] ? html`<p class="notice err small">${errors[name]}</p>` : ''}
+    <p class="muted small">${help}</p>
+  </div>`;
+  const body = html`<div class="head"><h1>Publicité · pixels de suivi</h1></div>
+  <p class="muted">Collez l’identifiant, ou tout le code fourni par Meta, TikTok ou Google : le tableau de bord en extrait l’identifiant. Laissez un champ vide pour désactiver (ou pour garder la valeur de cPanel s’il y en a une). Le changement s’applique immédiatement, sans redéploiement.</p>
+  <form class="card form" method="post" action="/admin/publicite">
+    ${field({ name: 'meta', label: 'Meta (Facebook & Instagram) · Pixel ID', placeholder: '1234567890123456', state: pixelState(pixels.meta), help: 'Meta Business Suite → Gestionnaire d’événements → Sources de données → votre pixel → Paramètres : « ID du pixel ».' })}
+    ${field({ name: 'tiktok', label: 'TikTok · Pixel ID', placeholder: 'C4ABCDEFGHIJKLMNOPQR', state: pixelState(pixels.tiktok), help: 'TikTok Ads Manager → Outils → Événements → Événements web → votre pixel : l’identifiant sous son nom.' })}
+    ${field({ name: 'ga', label: 'Google Analytics 4 · ID de mesure', placeholder: 'G-XXXXXXXXXX', state: pixelState(pixels.ga), help: 'Google Analytics → Admin → Flux de données → votre site : « ID de mesure ».' })}
+    <div class="cols">
+      ${field({ name: 'adsId', label: 'Google Ads · ID de conversion (facultatif)', placeholder: 'AW-123456789', state: pixelState(pixels.ads), help: 'Google Ads → Objectifs → Conversions → votre action « Achat » → Configurer la balise → Google tag : AW-….' })}
+      ${field({ name: 'adsLabel', label: 'Google Ads · étiquette de conversion « Achat »', placeholder: 'AbCdEfGhIjKlMnOp', help: 'Dans le même écran : la partie après la barre oblique de « AW-123456789/AbCdEf… ». Vous pouvez aussi coller AW-…/… dans le champ précédent.' })}
+    </div>
+    <div class="bar"><button class="btn" type="submit">Enregistrer</button></div>
+  </form>
+  <div class="card events">
+    <h2>Ce que le site envoie</h2>
+    <table class="table"><thead><tr><th>Quand</th><th>Meta</th><th>TikTok</th><th>Google</th></tr></thead><tbody>
+      <tr><td>Chaque page</td><td>PageView</td><td>page</td><td>page_view</td></tr>
+      <tr><td>Page d’un article</td><td>ViewContent</td><td>ViewContent</td><td>view_item</td></tr>
+      <tr><td>Ajout au panier</td><td>AddToCart</td><td>AddToCart</td><td>add_to_cart</td></tr>
+      <tr><td>Envoi du formulaire de commande</td><td>InitiateCheckout</td><td>InitiateCheckout</td><td>begin_checkout</td></tr>
+      <tr><td>Commande reçue (page « merci »)</td><td>Purchase</td><td>CompletePayment</td><td>purchase + conversion Google Ads</td></tr>
+      <tr><td>« Prévenez-moi » d’un lancement</td><td>Lead</td><td>SubmitForm</td><td>generate_lead</td></tr>
+    </tbody></table>
+    <p class="muted small">Montants en dinars (DZD). Une commande renvoyée deux fois n’est comptée qu’une fois. Pour vérifier : extensions Chrome « Meta Pixel Helper », « TikTok Pixel Helper » et « Tag Assistant » de Google, puis ouvrez le site.</p>
+  </div>`;
+  return page({ title: 'Publicité', body, active: 'ads', notice, error: Object.keys(errors).length ? 'Corrigez les champs signalés.' : '', assets });
+}

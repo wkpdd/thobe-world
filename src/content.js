@@ -60,7 +60,7 @@ export class ContentStore {
   }
 
   #load() {
-    const empty = { version: 1, slides: [], launches: [], subscribers: [] };
+    const empty = { version: 1, slides: [], launches: [], subscribers: [], tracking: {} };
     if (!existsSync(this.file)) return empty;
     try {
       const data = JSON.parse(readFileSync(this.file, 'utf8'));
@@ -246,8 +246,70 @@ export class ContentStore {
     return this.data.subscribers.filter((s) => s.launchId === launchId).sort((a, b) => a.at.localeCompare(b.at));
   }
 
+  // ---- Ad pixels (« Publicité ») ----------------------------------------------------
+  tracking() {
+    return { meta: '', tiktok: '', ga: '', adsId: '', adsLabel: '', ...this.data.tracking };
+  }
+
+  /** Save the pixel IDs typed (or whole snippets pasted) in the dashboard. */
+  saveTracking(input) {
+    const result = readTracking(input);
+    if (!result.ok) return result;
+    this.data.tracking = { ...result.tracking, updatedAt: this.now().toISOString() };
+    this.#save();
+    return { ok: true, tracking: this.tracking() };
+  }
+
+  /** What the shop front uses: the dashboard's IDs, or cPanel's for any left empty there. */
+  pixels(fromEnv = {}) {
+    const t = this.tracking();
+    // cPanel's values go into every page too: only well-formed IDs are used.
+    const env = readTracking({ meta: fromEnv.meta, tiktok: fromEnv.tiktok, ga: fromEnv.ga });
+    fromEnv = env.ok ? env.tracking : Object.fromEntries(Object.entries(env.tracking).filter(([k]) => !env.errors[k]));
+    const pick = (mine, env) => (mine ? { id: mine, source: 'dashboard' } : env ? { id: env, source: 'cpanel' } : { id: '', source: '' });
+    return {
+      meta: pick(t.meta, fromEnv.meta),
+      tiktok: pick(t.tiktok, fromEnv.tiktok),
+      ga: pick(t.ga, fromEnv.ga),
+      ads: t.adsId ? { id: t.adsId, label: t.adsLabel, source: 'dashboard' } : { id: '', label: '', source: '' },
+    };
+  }
+
   // ---- Media ------------------------------------------------------------------------
   mediaPath(name) {
     return MEDIA.test(name) ? join(this.mediaDir, name) : null;
   }
+}
+
+/**
+ * Pixel IDs as the owner may give them: the bare ID, or the whole snippet
+ * copied from Meta Events Manager, TikTok Ads Manager or Google.
+ * Returns {ok, tracking} or {ok:false, errors: {field: message}}.
+ */
+export function readTracking(input = {}) {
+  const raw = (key) => String(input[key] ?? '').trim().slice(0, 20_000);
+  const errors = {};
+  const tracking = {};
+
+  const meta = raw('meta');
+  tracking.meta = /fbq\(\s*['"]init['"]\s*,\s*['"]?(\d{8,20})/u.exec(meta)?.[1] ?? meta.replace(/\s+/gu, '');
+  if (tracking.meta && !/^\d{8,20}$/u.test(tracking.meta)) errors.meta = 'Un identifiant de pixel Meta est un nombre de 15 à 16 chiffres (Gestionnaire d’événements → Sources de données).';
+
+  const tiktok = raw('tiktok');
+  tracking.tiktok = (/ttq\.load\(\s*['"]([A-Za-z0-9]{12,32})['"]/u.exec(tiktok)?.[1] ?? tiktok.replace(/\s+/gu, '')).toUpperCase();
+  if (tracking.tiktok && !/^[A-Z0-9]{12,32}$/u.test(tracking.tiktok)) errors.tiktok = 'Un identifiant de pixel TikTok ressemble à C4ABCDEFGHIJKLMNOPQR (TikTok Ads Manager → Outils → Événements).';
+
+  const ga = raw('ga');
+  tracking.ga = (/\bG-[A-Z0-9]{4,16}\b/iu.exec(ga)?.[0] ?? ga.replace(/\s+/gu, '')).toUpperCase();
+  if (tracking.ga && !/^G-[A-Z0-9]{4,16}$/u.test(tracking.ga)) errors.ga = 'Un identifiant Google Analytics 4 commence par G- (Admin → Flux de données).';
+
+  const ads = raw('adsId');
+  const pair = /\bAW-(\d{6,14})(?:\/([A-Za-z0-9_-]{4,40}))?/iu.exec(ads);
+  tracking.adsId = pair ? `AW-${pair[1]}` : ads.replace(/\s+/gu, '').toUpperCase();
+  tracking.adsLabel = raw('adsLabel').replace(/\s+/gu, '') || pair?.[2] || '';
+  if (tracking.adsId && !/^AW-\d{6,14}$/u.test(tracking.adsId)) errors.adsId = 'Un identifiant Google Ads commence par AW- suivi de chiffres.';
+  if (tracking.adsLabel && !/^[A-Za-z0-9_-]{4,40}$/u.test(tracking.adsLabel)) errors.adsLabel = 'L’étiquette de conversion est la partie après la barre oblique (AW-123456789/AbCdEf…).';
+  if (tracking.adsLabel && !tracking.adsId) errors.adsId = 'Indiquez aussi l’identifiant AW-….';
+
+  return Object.keys(errors).length ? { ok: false, errors, tracking } : { ok: true, tracking };
 }

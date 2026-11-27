@@ -66,3 +66,9 @@ pre{background:var(--sand);border-radius:8px;padding:10px;text-align:start;white
 .table{width:100%;border-collapse:collapse;background:var(--pearl);border:1px solid var(--hair);border-radius:var(--r);overflow:hidden}
 .table th,.table td{padding:9px 10px;border-bottom:1px solid var(--hair);text-align:start}
 .table th{background:var(--sand);font-size:.85rem}
+.pixel{display:grid;gap:4px}
+.pixel label .pill{display:inline-block;margin-inline-start:6px;vertical-align:middle}
+.pixel .notice{margin:0}
+.card.events{margin-top:16px}
+.card.events h2{font-size:1.1rem;margin-bottom:8px}
+.card.events p{margin-top:10px}

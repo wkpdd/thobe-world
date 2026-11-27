@@ -70,12 +70,12 @@ export const POLICIES = {
   confidentialite: {
     ar: { title: 'الخصوصية', blocks: [
       [null, 'نستعمل اسمك، رقم هاتفك وعنوانك فقط لتأكيد طلبك وتوصيله. نشاركها مع شركة التوصيل فقط.'],
-      ['الإحصائيات', 'قد نستعمل أدوات قياس (Meta، TikTok) لتحسين إعلاناتنا.'],
+      ['الإحصائيات', 'قد نستعمل أدوات قياس (Meta، TikTok، Google) لتحسين إعلاناتنا.'],
       ['حقوقك', 'يمكنك طلب حذف معلوماتك بالاتصال بنا على {phone}.'],
     ] },
     fr: { title: 'Confidentialité', blocks: [
       [null, 'Votre nom, téléphone et adresse servent uniquement à confirmer et livrer votre commande, et ne sont partagés qu’avec le transporteur.'],
-      ['Mesure d’audience', 'Nous pouvons utiliser des pixels (Meta, TikTok) pour améliorer nos publicités.'],
+      ['Mesure d’audience', 'Nous pouvons utiliser des pixels (Meta, TikTok, Google) pour améliorer nos publicités.'],
       ['Vos droits', 'Demandez la suppression de vos données au {phone}.'],
     ] },
   },

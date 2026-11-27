@@ -113,3 +113,28 @@ test('dashboard login: closed without a long password, signed cookie, lockout, p
   const changed = new AdminAuth({ user: 'admin', password: 'another-long-password', secret: 's', now: () => now });
   assert.equal(changed.check({ headers: { cookie: fresh.split(';')[0] } }), false);
 });
+
+test('ad pixels: an ID or a whole pasted snippet; the dashboard wins over cPanel; bad IDs are refused', async () => {
+  const { readTracking } = await import('../../src/content.js');
+  const pasted = readTracking({
+    meta: "<script>fbq('init', '1234567890123456');\nfbq('track', 'PageView');</script>",
+    tiktok: "ttq.load('c4abcdefghijklmnopqr'); ttq.page();",
+    ga: '<script async src="https://www.googletagmanager.com/gtag/js?id=G-AB12CD34EF"></script>',
+    adsId: "gtag('event', 'conversion', {'send_to': 'AW-987654321/AbC-dEf_123'});",
+  });
+  assert.deepEqual(pasted, { ok: true, tracking: { meta: '1234567890123456', tiktok: 'C4ABCDEFGHIJKLMNOPQR', ga: 'G-AB12CD34EF', adsId: 'AW-987654321', adsLabel: 'AbC-dEf_123' } });
+  const wrong = readTracking({ meta: 'abc', ga: 'UA-12345-1', adsLabel: 'xyz123' });
+  assert.deepEqual(Object.keys(wrong.errors).sort(), ['adsId', 'ga', 'meta']);
+
+  const content = store();
+  assert.equal(content.saveTracking({ meta: '"></script><script>alert(1)' }).ok, false, 'nothing that is not an ID reaches the page');
+  assert.deepEqual(content.pixels({ meta: '1111111111111111', tiktok: 'BAD"</script>' }).meta, { id: '1111111111111111', source: 'cpanel' });
+  assert.equal(content.pixels({ tiktok: 'BAD"</script>' }).tiktok.id, '', 'a malformed cPanel value is ignored');
+  content.saveTracking({ meta: '2222222222222222', ga: 'G-ZZZZ1111' });
+  const live = content.pixels({ meta: '1111111111111111' });
+  assert.deepEqual(live.meta, { id: '2222222222222222', source: 'dashboard' });
+  assert.equal(live.ga.id, 'G-ZZZZ1111');
+  assert.equal(live.ads.id, '');
+  content.saveTracking({ meta: '' });
+  assert.equal(content.pixels({ meta: '1111111111111111' }).meta.source, 'cpanel', 'emptied: back to cPanel');
+});

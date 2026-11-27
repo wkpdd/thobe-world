@@ -3,7 +3,7 @@ import express from 'express';
 import { storeUpload, mediaSet } from '../images.js';
 import { AdminAuth } from './auth.js';
 import { parseAlgiers } from '../content.js';
-import { launchForm, launchesPage, loginPage, slideForm, slidesPage, subscribersCsv, subscribersPage } from './views.js';
+import { launchForm, launchesPage, loginPage, slideForm, slidesPage, subscribersCsv, subscribersPage, trackingPage } from './views.js';
 
 export function adminRouter({ config, content, catalogue, assets, images }) {
   const auth = new AdminAuth({
@@ -131,6 +131,14 @@ export function adminRouter({ config, content, catalogue, assets, images }) {
     res.setHeader('Cache-Control', 'no-store');
     res.setHeader('Content-Disposition', `attachment; filename="inscrits-${launch.slug}.csv"`);
     return res.type('text/csv; charset=utf-8').send(subscribersCsv(content.subscribers(launch.id)));
+  });
+
+  // ---- Ad pixels ----------------------------------------------------------------------
+  router.get('/publicite', (req, res) => send(res, trackingPage({ assets, tracking: content.tracking(), pixels: content.pixels(config.pixels), ...flash(req) })));
+  router.post('/publicite', express.urlencoded({ extended: false, limit: '256kb' }), (req, res) => {
+    const result = content.saveTracking(req.body ?? {});
+    if (!result.ok) return send(res, trackingPage({ assets, tracking: result.tracking, pixels: content.pixels(config.pixels), errors: result.errors }), 422);
+    return res.redirect(303, `/admin/publicite?ok=${encodeURIComponent('Pixels enregistrés : actifs sur le site dès maintenant.')}`);
   });
 
   return router;

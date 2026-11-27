@@ -138,7 +138,7 @@ export function createApp(config) {
     if (asked && asked !== cookie) res.setHeader('Set-Cookie', `lang=${asked}; Path=/; Max-Age=31536000; SameSite=Lax`);
     const url = new URL(req.originalUrl, 'http://x');
     url.searchParams.delete('lang');
-    res.locals.ctx = { lang, config, assets, catalogue, content, path: `${url.pathname}${url.search}`, deliveryOptions: storage.shopData().deliveryOptions };
+    res.locals.ctx = { lang, config, assets, catalogue, content, pixels: content.pixels(config.pixels), path: `${url.pathname}${url.search}`, deliveryOptions: storage.shopData().deliveryOptions };
     res.setHeader('Vary', 'Cookie');
     next();
   });

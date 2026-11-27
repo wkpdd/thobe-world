@@ -59,12 +59,16 @@
         window.fbq('track', name, { value: data.value, currency: data.currency || 'DZD', content_ids: data.id ? [data.id] : undefined, content_name: data.contentName, content_type: 'product' }, data.eventId ? { eventID: data.eventId } : undefined);
       }
       if (TW.pixels && TW.pixels.tiktok && window.ttq) {
-        var map = { ViewContent: 'ViewContent', AddToCart: 'AddToCart', InitiateCheckout: 'InitiateCheckout', Purchase: 'CompletePayment' };
-        window.ttq.track(map[name] || name, { value: data.value, currency: data.currency || 'DZD', content_id: data.id });
+        var map = { ViewContent: 'ViewContent', AddToCart: 'AddToCart', InitiateCheckout: 'InitiateCheckout', Purchase: 'CompletePayment', Lead: 'SubmitForm' };
+        window.ttq.track(map[name] || name, { value: data.value, currency: data.currency || 'DZD', content_id: data.id }, data.eventId ? { event_id: data.eventId } : undefined);
       }
       if (TW.pixels && TW.pixels.ga && window.gtag) {
-        var ga = { ViewContent: 'view_item', AddToCart: 'add_to_cart', InitiateCheckout: 'begin_checkout', Purchase: 'purchase' };
+        var ga = { ViewContent: 'view_item', AddToCart: 'add_to_cart', InitiateCheckout: 'begin_checkout', Purchase: 'purchase', Lead: 'generate_lead' };
         window.gtag('event', ga[name] || name, { value: data.value, currency: data.currency || 'DZD', transaction_id: name === 'Purchase' ? data.id : undefined });
+      }
+      // Google Ads: an order counts as a conversion (the label comes from the dashboard).
+      if (name === 'Purchase' && TW.pixels && TW.pixels.adsPurchase && window.gtag) {
+        window.gtag('event', 'conversion', { send_to: TW.pixels.adsPurchase, value: data.value, currency: data.currency || 'DZD', transaction_id: data.id });
       }
     } catch (e) { /* a blocked pixel must never break the shop */ }
   }
