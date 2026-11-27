@@ -51,6 +51,10 @@ if (-not (Test-Path $git)) {
   $asset = $release.assets | Where-Object { $_.name -match '^MinGit-[0-9.]+-64-bit\.zip$' } | Select-Object -First 1
   $zip = Join-Path $Tools $asset.name
   Invoke-WebRequest -UseBasicParsing $asset.browser_download_url -OutFile $zip
+  # GitHub publishes each file's sha256: refuse a download that does not match it.
+  if ($asset.digest -match '^sha256:([0-9a-f]{64})$') {
+    if ((Get-FileHash $zip -Algorithm SHA256).Hash.ToLower() -ne $Matches[1]) { Remove-Item $zip; throw "MinGit download is damaged ($($asset.name))" }
+  } else { Write-Warning 'GitHub gave no checksum for MinGit: it could not be verified.' }
   Expand-Archive $zip -DestinationPath (Join-Path $Tools 'mingit') -Force
   Remove-Item $zip
 }
@@ -78,7 +82,7 @@ if (-not (Test-Path '.deploy.env')) {
     '# the FTP server: its IP address (from the hosting welcome email) or its name'
     'FTP_HOST='
     'FTP_PORT=21'
-    'FTP_USER=thobew25'
+    'FTP_USER='
     '# type the FTP password after the = sign, then: npm run deploy:check'
     'FTP_PASSWORD='
     'FTP_SECURE=true'

@@ -4,3 +4,11 @@ node_modules/
 test-results/
 playwright-report/
 .deploy.env
+.env.*
+!.env.example
+.deploy.env.*
+!.deploy.env.example
+*.twpkg
+/tools/
+setup-lab.log
+LAB-README.txt

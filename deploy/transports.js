@@ -48,6 +48,10 @@ export function cpanelTransport({ url, user, token, password, auth, appDir, fetc
   if (!url) throw new Error('CPANEL_URL is missing (e.g. https://cpanel.example.dz or https://server.host.com:2083)');
   if (!appDir) throw new Error('APP_DIR is missing (the application root, e.g. thobe-world)');
   const base = url.replace(/\/+$/u, '');
+  const parsed = new URL(base);
+  if (parsed.protocol !== 'https:' && !['localhost', '127.0.0.1', '[::1]'].includes(parsed.hostname)) {
+    throw new Error('CPANEL_URL must start with https:// (the login would otherwise travel in clear text)');
+  }
   const headers = {};
   if (auth !== 'proxy') {
     if (user && token) headers.authorization = `cpanel ${user}:${token}`;
@@ -185,10 +189,13 @@ function explainFtpError(error, { host, tlsServername }) {
       .map((n) => n.trim())
       .filter((n) => n.startsWith('DNS:'))
       .map((n) => n.slice(4));
-    const name = names.find((n) => !n.startsWith('*.')) ?? error.cert?.subject?.CN ?? '';
+    // The name is NOT offered as a line to copy: on a hostile network the certificate could be an
+    // attacker's. The owner takes the server name from cPanel or the host, then compares.
     return new Error(
-      `the FTP server's certificate is for ${names.join(', ') || error.cert?.subject?.CN || 'another name'}, not for « ${tlsServername ?? host} ».`
-        + (name ? ` Add this line to .deploy.env and run the check again:\n    FTP_TLS_SERVERNAME=${name}` : ''),
+      `the FTP server's certificate is for ${names.join(', ') || error.cert?.subject?.CN || 'another name'}, not for « ${tlsServername ?? host} ».\n`
+        + '  Find your server\'s name in cPanel (General Information → « Server Name » / « Shared IP »'
+        + ' or the hosting welcome email). Only if it is one of the names above, add to .deploy.env:\n'
+        + '    FTP_TLS_SERVERNAME=<that server name>',
     );
   }
   if (['SELF_SIGNED_CERT_IN_CHAIN', 'DEPTH_ZERO_SELF_SIGNED_CERT', 'UNABLE_TO_VERIFY_LEAF_SIGNATURE', 'CERT_HAS_EXPIRED'].includes(error.code)) {

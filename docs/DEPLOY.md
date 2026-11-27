@@ -71,8 +71,12 @@ rollback never touches them.
    - **Password:** works only without two-factor authentication.
    - **FTP:** an FTP account whose folder includes `thobe-world`.
      `FTP_HOST` can be the server's IP address. The connection stays
-     encrypted: the first `npm run deploy:check` prints the name on the
-     server's certificate as a line to add (`FTP_TLS_SERVERNAME=…`).
+     encrypted; add the server's own name as `FTP_TLS_SERVERNAME=…`.
+     - Take that name from cPanel (General Information → Server Name) or the
+       hosting welcome email, never from an error message.
+     - `npm run deploy:check` lists the names on the certificate it received,
+       so you can compare. It no longer offers one to copy, because on a
+       hostile network that certificate could be an attacker's.
 4. Copy `.deploy.env.example` to `.deploy.env` and fill it in, then run:
    ```bash
    npm run deploy:check

@@ -107,7 +107,7 @@ npm run demo        # store + demo catalogue pushed by H47 Pay's own client → 
 ```
 
 ```bash
-cp .env.example .env   # set NEWSTORE_SYNC_KEY, APP_SECRET, SITE_URL
+cp .env.example .env   # set NEWSTORE_SYNC_KEY and SITE_URL (APP_SECRET is created if empty)
 npm start
 ```
 

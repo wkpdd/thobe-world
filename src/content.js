@@ -16,7 +16,8 @@ import { normalizePhone } from './orders.js';
 
 const MAX_SLIDES = 12;
 const MAX_LAUNCHES = 60;
-const MAX_SUBSCRIBERS = 20_000;
+const MAX_SUBSCRIBERS = 50_000;
+const MAX_SUBSCRIBERS_PER_LAUNCH = 5_000;
 const MEDIA = /^m-[a-f0-9]{16}\.(?:jpg|png|webp)$/u;
 
 /** Algeria is UTC+1 all year: a « 2026-12-01T20:00 » typed in the dashboard is Algiers time. */
@@ -41,6 +42,8 @@ const media = (value) => (MEDIA.test(String(value ?? '')) ? String(value) : null
 export function safeLink(value) {
   const link = text(value, 300);
   if (!link) return '';
+  // A backslash or control character can turn « /\evil.example » into another site.
+  if (/[\\\u0000-\u001f\u007f]/u.test(link)) return '';
   if (link.startsWith('/') && !link.startsWith('//')) return link;
   try {
     const url = new URL(link);
@@ -236,14 +239,26 @@ export class ContentStore {
     const normalized = normalizePhone(phone);
     if (!normalized) return { ok: false, code: 'phone' };
     if (this.data.subscribers.some((s) => s.launchId === launchId && s.phone === normalized)) return { ok: true, already: true };
-    if (this.data.subscribers.length >= MAX_SUBSCRIBERS) return { ok: false, code: 'full' };
-    this.data.subscribers.push({ launchId, phone: normalized, name: text(name, 60), at: this.now().toISOString() });
+    if (this.data.subscribers.length >= MAX_SUBSCRIBERS || this.subscribers(launchId).length >= MAX_SUBSCRIBERS_PER_LAUNCH) return { ok: false, code: 'full' };
+    // A name is only a name: no leading = + - @ that a spreadsheet would run as a formula.
+    const cleanName = text(name, 60).replace(/^[=+\-@\t\r]+/u, '').trim();
+    this.data.subscribers.push({ launchId, phone: normalized, name: cleanName, at: this.now().toISOString() });
     this.#save();
     return { ok: true, already: false };
   }
 
   subscribers(launchId) {
     return this.data.subscribers.filter((s) => s.launchId === launchId).sort((a, b) => a.at.localeCompare(b.at));
+  }
+
+  // ---- Dashboard sessions -----------------------------------------------------------
+  adminGeneration() {
+    return Number(this.data.adminGeneration ?? 0);
+  }
+
+  revokeAdminSessions() {
+    this.data.adminGeneration = this.adminGeneration() + 1;
+    this.#save();
   }
 
   // ---- Ad pixels (« Publicité ») ----------------------------------------------------

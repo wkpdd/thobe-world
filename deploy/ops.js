@@ -11,6 +11,7 @@
  *
  * Rolling back is steps 3–5 with an older release that is still on the host.
  */
+import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
@@ -18,6 +19,7 @@ import { buildRelease, gitState, REPO, releaseId, savePackage } from './build.js
 
 export const BOOTSTRAP = join(REPO, 'deploy', 'bootstrap.cjs');
 const LOCK_MINUTES = 15;
+const LOCK_SETTLE_MS = 1500;
 const HISTORY_MAX = 60;
 
 /** Settings from the environment, then `.deploy.env` at the repository root (never committed). */
@@ -86,14 +88,28 @@ async function record(transport, entry) {
   await transport.write('deploys.json', `${JSON.stringify(list.slice(-HISTORY_MAX), null, 2)}\n`);
 }
 
-async function lock(transport, by, force) {
+/**
+ * FTP and cPanel cannot create a file « only if absent », so the lock is: check it is free,
+ * write ours with a random token, wait a moment, read it back. Whoever's token is there owns it.
+ * Unlock only clears a lock that is still ours.
+ */
+async function lock(transport, by, force, settleMs = LOCK_SETTLE_MS) {
+  const free = (held) => !held?.at || Date.now() - Date.parse(held.at) >= LOCK_MINUTES * 60_000;
   const held = await readJson(transport, 'DEPLOY_LOCK', null);
-  if (held?.at && !force && Date.now() - Date.parse(held.at) < LOCK_MINUTES * 60_000) {
+  if (!free(held) && !force) {
     throw new Error(`another deploy is running (started ${held.at} by ${held.by}). Wait, or pass --force if it crashed.`);
   }
-  await transport.write('DEPLOY_LOCK', JSON.stringify({ at: new Date().toISOString(), by }));
+  const token = randomUUID();
+  await transport.write('DEPLOY_LOCK', JSON.stringify({ at: new Date().toISOString(), by, token }));
+  await sleep(settleMs);
+  const now = await readJson(transport, 'DEPLOY_LOCK', null);
+  if (now?.token !== token) throw new Error(`another deploy took the lock at the same moment (${now?.by ?? '?'}). Try again in a minute.`);
+  return token;
 }
-const unlock = (transport) => transport.write('DEPLOY_LOCK', '');
+async function unlock(transport, token) {
+  const held = await readJson(transport, 'DEPLOY_LOCK', null);
+  if (held?.token === token) await transport.write('DEPLOY_LOCK', '');
+}
 
 /** Restart hint for Passenger. The switcher also restarts on its own when CURRENT changes. */
 async function touchRestart(transport) {
@@ -190,11 +206,12 @@ export async function deploy({ transport, settings, release, force = false, allo
   const saved = pkg.file ? { file: pkg.file, cleanup: () => {} } : savePackage(pkg.buffer, pkg.id);
 
   const state = await readState(transport);
-  await lock(transport, settings.by, force);
-  const previous = state.good || state.current;
+  const token = await lock(transport, settings.by, force, settings.lockSettleMs);
+  const previous = state.good && state.good !== 'none' ? state.good : state.current !== 'none' ? state.current : '';
   try {
     log(`Uploading to ${transport.describe}`);
-    await transport.upload('app.cjs', BOOTSTRAP);
+    // The startup file is replaced only when it changed: a worker starting during that write would read half of it.
+    if ((await transport.read('app.cjs')) !== readFileSync(BOOTSTRAP, 'utf8')) await transport.upload('app.cjs', BOOTSTRAP);
     const started = Date.now();
     await transport.upload(`release-${pkg.id}.twpkg`, saved.file);
     await transport.write(`release-${pkg.id}.sha256`, `${pkg.sha256}\n`);
@@ -204,7 +221,7 @@ export async function deploy({ transport, settings, release, force = false, allo
     if (result.ok) {
       await transport.write('GOOD', `${pkg.id}\n`);
       await record(transport, { action: 'deploy', id: pkg.id, commit: pkg.commit, result: 'live', by: settings.by, previous: previous || null });
-      log(`✔ ${pkg.id} is live on ${settings.siteUrl} (${result.health.products} products)`);
+      log(`✔ ${pkg.id} is live on ${settings.siteUrl}`);
       return { ok: true, id: pkg.id, previous };
     }
 
@@ -218,14 +235,14 @@ export async function deploy({ transport, settings, release, force = false, allo
       restored = back.ok;
       log(back.ok ? `✔ ${previous} is live again` : `✘ ${previous} did not come back either: ${back.reason}`);
     } else {
-      await transport.write('CURRENT', '\n');
+      await transport.write('CURRENT', 'none\n'); // the switcher shows its maintenance page
       log('Nothing was live before: the site shows its maintenance page.');
     }
     await record(transport, { action: 'deploy', id: pkg.id, commit: pkg.commit, result: 'failed', reason: result.reason, by: settings.by, previous: previous || null, restored });
     return { ok: false, id: pkg.id, previous, reason: result.reason, restored };
   } finally {
     saved.cleanup();
-    await unlock(transport).catch(() => {});
+    await unlock(transport, token).catch(() => {});
   }
 }
 
@@ -248,7 +265,7 @@ export async function rollback({ transport, settings, to = null, force = false, 
   const target = to ?? liveReleases(state.history).find((e) => e.id !== state.current)?.id;
   if (!target) throw new Error('no earlier release to roll back to (see npm run deploy:status)');
   if (target === state.current) throw new Error(`${target} is already the live release`);
-  await lock(transport, settings.by, force);
+  const token = await lock(transport, settings.by, force, settings.lockSettleMs);
   try {
     log(`Rolling back ${state.current || '(nothing)'} → ${target}`);
     const result = await switchTo(transport, settings, target, { fetchImpl, log });
@@ -269,7 +286,7 @@ export async function rollback({ transport, settings, to = null, force = false, 
     await record(transport, { action: 'rollback', id: target, result: 'failed', reason: result.reason, from: state.current || null, by: settings.by });
     return { ok: false, id: target, reason: result.reason };
   } finally {
-    await unlock(transport).catch(() => {});
+    await unlock(transport, token).catch(() => {});
   }
 }
 
@@ -280,7 +297,7 @@ export async function status({ transport, settings, fetchImpl = fetch, log = con
   log(`Site:     ${settings.siteUrl || '(SITE_URL not set)'}`);
   log(`CURRENT:  ${state.current || '(none)'}`);
   log(`GOOD:     ${state.good || '(none)'}`);
-  if (health) log(`Live:     ${health.ok ? `release ${health.release ?? '?'}, ${health.products} products, ${health.orders} orders, photos ${health.images ?? '?'}${health.fallback ? ' (FALLBACK)' : ''}` : `not healthy (${health.error ?? `HTTP ${health.status}`})`}`);
+  if (health) log(`Live:     ${health.ok ? `release ${health.release ?? '?'}, photos ${health.images ?? '?'}${health.fallback ? ' (FALLBACK)' : ''}` : `not healthy (${health.error ?? `HTTP ${health.status}`})`}`);
   if (state.lock?.at) log(`Lock:     held since ${state.lock.at} by ${state.lock.by}`);
   const live = liveReleases(state.history);
   log('Releases you can roll back to (newest first; the host keeps the last 5):');

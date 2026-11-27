@@ -6,7 +6,7 @@
  */
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { cpSync, existsSync, lstatSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -28,6 +28,16 @@ export function gitState(repo = REPO) {
     return { commit, branch, dirty };
   } catch {
     return { commit: 'nogit', branch: '', dirty: true };
+  }
+}
+
+/** The included files git tracks or would track (never ignored ones like .env), or null outside a git checkout. */
+export function trackedFiles(repo = REPO) {
+  try {
+    if (git(['rev-parse', '--show-toplevel'], repo) !== repo.replace(/[\\/]+$/u, '')) return null;
+    return git(['ls-files', '-z', '--cached', '--others', '--exclude-standard', '--', ...INCLUDE], repo).split('\0').filter(Boolean).filter((rel) => existsSync(join(repo, rel)));
+  } catch {
+    return null;
   }
 }
 
@@ -82,9 +92,18 @@ export function pack(dir) {
 export function buildRelease({ repo = REPO, id, commit, install = true, log = () => {} } = {}) {
   const stage = mkdtempSync(join(tmpdir(), 'thobe-release-'));
   try {
-    for (const item of INCLUDE) {
-      const from = join(repo, item);
-      if (existsSync(from)) cpSync(from, join(stage, item), { recursive: true });
+    // Only files git knows: an ignored or stray file (a .env in src/, a backup) never ships.
+    const tracked = trackedFiles(repo);
+    if (tracked) {
+      for (const rel of tracked) {
+        mkdirSync(dirname(join(stage, rel)), { recursive: true });
+        cpSync(join(repo, rel), join(stage, rel));
+      }
+    } else {
+      for (const item of INCLUDE) {
+        const from = join(repo, item);
+        if (existsSync(from)) cpSync(from, join(stage, item), { recursive: true });
+      }
     }
     if (install) {
       log('npm ci --omit=dev for linux-x64 (glibc)…');

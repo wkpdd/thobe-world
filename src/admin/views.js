@@ -207,8 +207,13 @@ export function subscribersPage({ assets, launch, subscribers, siteUrl, shopName
   return page({ title: 'Inscrits', body, active: 'launches', assets });
 }
 
+/** A cell a spreadsheet will not run as a formula (= + - @ tab CR at the start get a leading '). */
+const csvCell = (value) => {
+  const text = String(value ?? '');
+  return `"${(/^[=+\-@\t\r]/u.test(text) ? `'${text}` : text).replace(/"/gu, '""')}"`;
+};
 export const subscribersCsv = (subscribers) =>
-  `﻿nom;telephone;inscrit_le\n${subscribers.map((s) => [s.name, s.phone, s.at].map((v) => `"${String(v ?? '').replace(/"/gu, '""')}"`).join(';')).join('\n')}\n`;
+  `\uFEFFnom;telephone;inscrit_le\n${subscribers.map((s) => [s.name, s.phone, s.at].map(csvCell).join(';')).join('\n')}\n`;
 
 const pixelState = (p) => (p.id
   ? html`<span class="pill on">Actif${p.source === 'cpanel' ? ' · défini dans cPanel' : ''}</span>`

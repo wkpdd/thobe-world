@@ -80,7 +80,7 @@ http.createServer((req, res) => {
   return { id, commit: 'test', ...built };
 }
 
-export const settingsFor = (siteUrl, extra = {}) => ({ siteUrl, healthTimeoutMs: 20_000, healthIntervalMs: 300, by: 'test', ...extra });
+export const settingsFor = (siteUrl, extra = {}) => ({ siteUrl, healthTimeoutMs: 20_000, healthIntervalMs: 300, lockSettleMs: 20, by: 'test', ...extra });
 
 /** A fake cPanel: UAPI Fileman get_file_content / save_file_content / upload_files on a folder. */
 export async function fakeCpanel(home, { user = 'shop', token = 'TOKEN123' } = {}) {

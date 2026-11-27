@@ -31,7 +31,10 @@ const { pathToFileURL } = require('node:url');
 const ROOT = __dirname;
 const RELEASES = path.join(ROOT, 'releases');
 const KEEP = Number(process.env.TW_KEEP_RELEASES ?? 5);
-const ID = /^[A-Za-z0-9._-]{1,80}$/u;
+// Letters, digits, - and _ only: never « . » or « .. » (which would name the app folder itself).
+const ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/u;
+const MAX_UNPACKED_BYTES = 400 * 1024 * 1024;
+const MAX_FILES = 20_000;
 const MAGIC = 'TWPKG1\n';
 
 function log(message) {
@@ -76,7 +79,8 @@ function loadSharedEnv() {
  * length, a JSON header {p: posix path, m: mode, s: size} and the bytes. Gzipped.
  */
 function unpack(buffer, targetDir) {
-  const data = zlib.gunzipSync(buffer);
+  // Bounded: a small package that expands to gigabytes would kill the process on a shared host.
+  const data = zlib.gunzipSync(buffer, { maxOutputLength: MAX_UNPACKED_BYTES });
   if (data.subarray(0, MAGIC.length).toString('latin1') !== MAGIC) throw new Error('not a release package');
   let offset = MAGIC.length;
   let files = 0;
@@ -98,34 +102,63 @@ function unpack(buffer, targetDir) {
     fs.writeFileSync(target, data.subarray(offset, offset + size), { mode: Number(header.m) & 0o777 || 0o644 });
     offset += size;
     files += 1;
+    if (files > MAX_FILES) throw new Error(`more than ${MAX_FILES} files in the package`);
   }
   return files;
 }
 
-/** The unpacked directory of release `id`, unpacking its uploaded package first if needed. */
+const sleep = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+
+/**
+ * The unpacked directory of release `id`, unpacking its uploaded package first if needed.
+ * Several Passenger workers may start at once: one unpacks (it holds releases/<id>.lock),
+ * the others wait for its .ready. A directory with .ready is never removed here.
+ */
 function prepare(id) {
   if (!ID.test(id)) throw new Error(`invalid release id « ${id} »`);
   const dir = path.join(RELEASES, id);
-  if (fs.existsSync(path.join(dir, '.ready'))) return dir;
+  const ready = () => fs.existsSync(path.join(dir, '.ready'));
+  if (ready()) return dir;
   const pkg = path.join(ROOT, `release-${id}.twpkg`);
   const expected = readText(`release-${id}.sha256`).split(/\s+/u)[0];
   if (!fs.existsSync(pkg)) throw new Error(`release ${id}: neither unpacked nor uploaded`);
   if (!expected) throw new Error(`release ${id}: upload not finished (no checksum yet)`);
-  const buffer = fs.readFileSync(pkg);
-  const actual = crypto.createHash('sha256').update(buffer).digest('hex');
-  if (actual !== expected) throw new Error(`release ${id}: checksum mismatch, the upload is incomplete or damaged`);
-  const partial = path.join(RELEASES, `${id}.partial-${process.pid}`);
-  fs.rmSync(partial, { recursive: true, force: true });
-  fs.mkdirSync(partial, { recursive: true });
-  const started = Date.now();
-  const files = unpack(buffer, partial);
-  fs.writeFileSync(path.join(partial, '.ready'), `${actual}\n`);
-  fs.rmSync(dir, { recursive: true, force: true });
-  fs.renameSync(partial, dir);
-  fs.rmSync(pkg, { force: true });
-  fs.rmSync(path.join(ROOT, `release-${id}.sha256`), { force: true });
-  log(`release ${id}: unpacked ${files} files in ${Date.now() - started} ms`);
-  return dir;
+
+  fs.mkdirSync(RELEASES, { recursive: true });
+  const lock = path.join(RELEASES, `${id}.lock`);
+  for (let waited = 0; ; waited += 250) {
+    try {
+      fs.mkdirSync(lock);
+      break; // ours
+    } catch (error) {
+      if (error.code !== 'EEXIST') throw error;
+      if (ready()) return dir; // another worker finished it
+      const age = Date.now() - fs.statSync(lock).mtimeMs;
+      if (age > 5 * 60_000) fs.rmSync(lock, { recursive: true, force: true }); // its owner died
+      else if (waited > 120_000) throw new Error(`release ${id}: still being unpacked by another process`);
+      else sleep(250);
+    }
+  }
+  try {
+    if (ready()) return dir;
+    const buffer = fs.readFileSync(pkg);
+    const actual = crypto.createHash('sha256').update(buffer).digest('hex');
+    if (actual !== expected) throw new Error(`release ${id}: checksum mismatch, the upload is incomplete or damaged`);
+    const partial = path.join(RELEASES, `${id}.partial-${process.pid}`);
+    fs.rmSync(partial, { recursive: true, force: true });
+    fs.mkdirSync(partial, { recursive: true });
+    const started = Date.now();
+    const files = unpack(buffer, partial);
+    fs.writeFileSync(path.join(partial, '.ready'), `${actual}\n`);
+    if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true }); // an unfinished leftover (no .ready)
+    fs.renameSync(partial, dir);
+    fs.rmSync(pkg, { force: true });
+    fs.rmSync(path.join(ROOT, `release-${id}.sha256`), { force: true });
+    log(`release ${id}: unpacked ${files} files in ${Date.now() - started} ms`);
+    return dir;
+  } finally {
+    fs.rmSync(lock, { recursive: true, force: true });
+  }
 }
 
 /** Remove old releases, keeping CURRENT, GOOD and the KEEP newest that started (a broken one never counts). */
@@ -171,7 +204,7 @@ function maintenance(reason) {
   const server = http.createServer((req, res) => {
     if (req.url.startsWith('/health')) {
       res.writeHead(503, { 'content-type': 'application/json', 'cache-control': 'no-store' });
-      res.end(JSON.stringify({ ok: false, release: null, error: reason }));
+      res.end(JSON.stringify({ ok: false, release: null, error: 'maintenance' })); // the reason stays in logs/bootstrap.log
       return;
     }
     res.writeHead(503, { 'content-type': 'text/html; charset=utf-8', 'retry-after': '30', 'cache-control': 'no-store' });
@@ -204,6 +237,7 @@ async function start() {
   const current = readText('CURRENT');
   const good = readText('GOOD');
   const candidates = [...new Set([current, good].filter(Boolean))];
+  if (current === 'none') return maintenance('no release to run (the deploy tool set CURRENT to « none »)');
   if (!candidates.length) return maintenance('no release deployed yet (CURRENT is empty)');
 
   const failures = [];

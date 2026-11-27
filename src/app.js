@@ -5,7 +5,8 @@
  * keeps only that projection (data/store.json + data/uploads) and never writes
  * stock: `@h47io/sync-receiver` enforces the contract.
  */
-import { readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
@@ -25,12 +26,30 @@ import { launchRefusal, whenText } from './launches.js';
 import { adminRouter } from './admin/routes.js';
 import { launchPage } from './views/launch.js';
 import { normalizePhone } from './orders.js';
+import { clientIp, WindowCounter } from './client-ip.js';
+import { SyncError } from '@h47io/sync-receiver';
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const PUBLIC = join(ROOT, 'public');
 const YEAR = 31_536_000;
 
-export function createApp(config) {
+/** APP_SECRET when it is long enough, else a random secret created once in the data folder. */
+function resolveSecret(config) {
+  if (config.secret.length >= 32) return config.secret;
+  if (config.secret) console.warn('APP_SECRET fait moins de 32 caractères : un secret aléatoire conservé dans DATA_DIR est utilisé à la place.');
+  const file = join(config.dataDir, '.app-secret');
+  if (existsSync(file)) {
+    const kept = readFileSync(file, 'utf8').trim();
+    if (kept.length >= 32) return kept;
+  }
+  mkdirSync(config.dataDir, { recursive: true });
+  const fresh = randomBytes(32).toString('hex');
+  writeFileSync(file, `${fresh}\n`, { mode: 0o600 });
+  return fresh;
+}
+
+export function createApp(baseConfig) {
+  const config = { ...baseConfig, secret: resolveSecret(baseConfig) };
   const storage = new JsonFileSyncStorage({ dir: config.dataDir, uploadsUrl: '/uploads/' });
   const catalogue = new Catalogue(storage);
   const images = new ImageOptimizer({ uploadsDir: storage.uploadsDir, cacheDir: join(config.dataDir, 'cache') });
@@ -60,9 +79,24 @@ export function createApp(config) {
 
   // 1. The NewStore endpoint, BEFORE any body parser (the package reads the raw body).
   const sync = createExpressHandler(receiver);
-  app.all('/api/sync.php', (req, res, next) => {
+  app.all('/api/sync.php', async (req, res, next) => {
+    // The key is checked BEFORE the body is read: a caller without it costs nothing
+    // (the package would otherwise read and parse up to 8 MB first).
+    try {
+      await receiver.authenticate({ headers: req.headers });
+    } catch (error) {
+      if (!(error instanceof SyncError)) return next(error);
+      res.setHeader('Connection', 'close');
+      return res.status(error.status).json(error.toBody());
+    }
+    // RFC 2046: a multipart boundary is at most 70 characters; longer ones only make parsing slow.
+    const boundary = /boundary=(?:"([^"]*)"|([^;\s]*))/iu.exec(String(req.headers['content-type'] ?? ''));
+    if (boundary && (boundary[1] ?? boundary[2] ?? '').length > 70) {
+      res.setHeader('Connection', 'close');
+      return res.status(400).json(new SyncError('VALIDATION', 'Limite multipart trop longue (70 caractères au plus).', 400).toBody());
+    }
     res.on('finish', () => catalogue.invalidate());
-    sync(req, res, next);
+    return sync(req, res, next);
   });
 
   app.use(compression({ threshold: 1024 }));
@@ -70,6 +104,9 @@ export function createApp(config) {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
     res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    // A light policy that cannot break the pixels: no plugins, no <base> hijack, no framing, forms stay here.
+    res.setHeader('Content-Security-Policy', "object-src 'none'; base-uri 'self'; frame-ancestors 'self'; form-action 'self'");
+    if (config.siteUrl.startsWith('https://')) res.setHeader('Strict-Transport-Security', 'max-age=15552000');
     next();
   });
 
@@ -136,8 +173,11 @@ export function createApp(config) {
     const cookie = /(?:^|;\s*)lang=(ar|fr)/u.exec(req.headers.cookie ?? '')?.[1];
     const lang = asked ?? cookie ?? 'ar';
     if (asked && asked !== cookie) res.setHeader('Set-Cookie', `lang=${asked}; Path=/; Max-Age=31536000; SameSite=Lax`);
-    const url = new URL(req.originalUrl, 'http://x');
-    url.searchParams.delete('lang');
+    // The address without ?lang, kept as sent (no « /./ » folding into « //host ») and with one leading slash.
+    const [rawPath, rawQuery = ''] = req.originalUrl.split('?');
+    const query = new URLSearchParams(rawQuery);
+    query.delete('lang');
+    const url = { pathname: `/${rawPath.replace(/^[/\\]+/u, '')}`, search: query.size ? `?${query}` : '' };
     res.locals.ctx = { lang, config, assets, catalogue, content, pixels: content.pixels(config.pixels), path: `${url.pathname}${url.search}`, deliveryOptions: storage.shopData().deliveryOptions };
     res.setHeader('Vary', 'Cookie');
     next();
@@ -202,21 +242,43 @@ export function createApp(config) {
   app.get('/panier', (_req, res) => page(res, cartPage(res.locals.ctx)));
   app.get('/commande', (_req, res) => page(res, checkoutPage(res.locals.ctx, { deliveryOptions: storage.shopData().deliveryOptions })));
 
+  // The « merci » token travels in a cookie for that page only, not in the address:
+  // the ad pixels report page addresses to Meta, TikTok and Google.
+  const merciCookie = (ref) => `tw_m_${ref.replace(/[^A-Za-z0-9-]/gu, '')}`;
   app.get('/merci/:ref', (req, res, next) => {
     const ref = String(req.params.ref);
-    if (!desk.verify(ref, req.query.t)) return next();
+    const fromCookie = new RegExp(`(?:^|;\\s*)${merciCookie(ref)}=([a-f0-9]{20})`, 'u').exec(req.headers.cookie ?? '')?.[1];
+    if (!desk.verify(ref, typeof req.query.t === 'string' ? req.query.t : fromCookie)) return next();
     const summary = desk.summary(ref);
     if (!summary) return next();
     return page(res, thanksPage(res.locals.ctx, summary, { duplicate: req.query.d === '1' }));
   });
 
-  app.get('/suivi', (req, res) => {
-    const reference = typeof req.query.ref === 'string' ? req.query.ref.slice(0, 40) : '';
-    const phone = typeof req.query.phone === 'string' ? req.query.phone.slice(0, 20) : '';
+  // Order tracking needs the reference AND the phone; tries are limited per device and per reference.
+  const trackTries = new WindowCounter({ windowMs: 10 * 60_000, max: 20 });
+  const trackMisses = new WindowCounter({ windowMs: 60 * 60_000, max: 8 });
+  const track = (req, res) => {
+    const source = req.method === 'POST' ? req.body ?? {} : req.query;
+    const reference = typeof source.ref === 'string' ? source.ref.slice(0, 40) : '';
+    const phone = typeof source.phone === 'string' ? source.phone.slice(0, 20) : '';
     const searched = Boolean(reference && phone);
-    const summary = searched ? desk.track(reference, phone) : null;
-    page(res, trackPage(res.locals.ctx, { reference, phone, summary, searched }));
-  });
+    const ip = clientIp(req);
+    const refKey = reference.trim().toUpperCase();
+    let summary = null;
+    let limited = false;
+    if (searched) {
+      limited = (ip && trackTries.full(ip)) || trackMisses.full(refKey);
+      if (!limited) {
+        if (ip) trackTries.hit(ip);
+        summary = desk.track(reference, phone);
+        if (!summary) trackMisses.hit(refKey);
+      }
+    }
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    page(res, trackPage(res.locals.ctx, { reference, phone, summary, searched, limited }), limited ? 429 : 200);
+  };
+  app.get('/suivi', track);
+  app.post('/suivi', express.urlencoded({ extended: false, limit: '2kb' }), track);
 
   app.get('/page/:slug', (req, res, next) => {
     const view = staticPage(res.locals.ctx, req.params.slug);
@@ -273,7 +335,7 @@ export function createApp(config) {
       if (refusal?.code === 'launchMax') return res.status(409).json({ ok: false, code: refusal.code, message: s.errors.launchMax(refusal.max) });
     }
     // Counted after the launch rules: trying before the opening hour is not a suspicious order.
-    if (!desk.allow(req.ip ?? 'unknown')) return res.status(429).json({ ok: false, message: s.errors.rate });
+    if (!desk.allow(clientIp(req))) return res.status(429).json({ ok: false, message: s.errors.rate });
     const result = desk.place(valid.order);
     if (!result.ok) {
       const refusal = result.refusal ?? { code: result.code };
@@ -282,25 +344,25 @@ export function createApp(config) {
       return res.status(result.status).json({ ok: false, field: refusal.code === 'delivery' ? 'delivery' : undefined, code: refusal.code, message });
     }
     const token = desk.sign(result.orderGroup);
+    const ref = encodeURIComponent(result.orderGroup);
+    res.setHeader('Set-Cookie', `${merciCookie(result.orderGroup)}=${token}; Path=/merci/${ref}; Max-Age=2592000; HttpOnly; SameSite=Lax${config.siteUrl.startsWith('https://') ? '; Secure' : ''}`);
     return res.status(result.status).json({
       ok: true,
       orderGroup: result.orderGroup,
       duplicate: Boolean(result.duplicate),
-      redirect: `/merci/${encodeURIComponent(result.orderGroup)}?t=${token}${result.duplicate ? '&d=1' : ''}`,
+      redirect: `/merci/${ref}${result.duplicate ? '?d=1' : ''}`,
     });
   });
 
   // « Prévenez-moi » on a launch that has not opened yet.
-  const notifyHits = new Map();
+  const notifyHits = new WindowCounter({ windowMs: 10 * 60_000, max: 10 });
   app.post('/api/notify', express.json({ limit: '4kb' }), (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
     const s = t(res.locals.ctx.lang);
     if (req.body?.website) return res.status(400).json({ ok: false, message: s.errors.generic });
-    const ip = req.ip ?? 'unknown';
-    const recent = (notifyHits.get(ip) ?? []).filter((at) => Date.now() - at < 10 * 60_000);
-    if (recent.length >= 10) return res.status(429).json({ ok: false, message: s.errors.rate });
-    notifyHits.set(ip, [...recent, Date.now()]);
-    if (notifyHits.size > 5000) notifyHits.clear();
+    const ip = clientIp(req);
+    if (ip && notifyHits.full(ip)) return res.status(429).json({ ok: false, message: s.errors.rate });
+    if (ip) notifyHits.hit(ip);
     if (!normalizePhone(req.body?.phone)) return res.status(400).json({ ok: false, field: 'phone', message: s.errors.phone });
     const result = content.subscribe(String(req.body?.launch ?? ''), { phone: req.body?.phone, name: req.body?.name });
     if (!result.ok) return res.status(result.code === 'gone' ? 404 : 400).json({ ok: false, message: result.code === 'gone' ? s.errors.gone : s.errors.generic });
@@ -317,11 +379,9 @@ export function createApp(config) {
     res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `<url><loc>${config.siteUrl}${u}</loc></url>`).join('\n')}\n</urlset>\n`);
   });
   app.get('/health', (_req, res) => {
-    const data = storage.shopData();
+    // Public: what a deploy needs to know, nothing about the business (no order or product counts).
     res.setHeader('Cache-Control', 'no-store');
-    res.json({ ok: true, products: data.products.length, orders: data.orders.length, deliveryOptions: data.deliveryOptions?.length ?? null, syncKey: config.syncKey !== '',
-      // Set by deploy/bootstrap.cjs on cPanel: which release answers, and whether it is a fallback.
-      release: process.env.TW_RELEASE ?? null, fallback: process.env.TW_RELEASE_FALLBACK === '1', images: imagesEnabled ? 'webp' : 'original' });
+    res.json({ ok: true, syncKey: config.syncKey !== '', release: process.env.TW_RELEASE ?? null, fallback: process.env.TW_RELEASE_FALLBACK === '1', images: imagesEnabled ? 'webp' : 'original' });
   });
 
   // 7. 404 and errors.
@@ -331,13 +391,14 @@ export function createApp(config) {
     return page(res, notFoundPage(res.locals.ctx), 404);
   });
   app.use((error, req, res, _next) => {
-    console.error(error);
+    if (!(error.status >= 400 && error.status < 500)) console.error(error);
     if (res.headersSent) return;
     if (req.path.startsWith('/api/')) {
       res.status(error.status ?? 500).json({ ok: false, message: t(res.locals.ctx?.lang).errors.generic });
       return;
     }
-    res.status(500).type('text/plain').send('Erreur interne. Réessayez dans un instant.');
+    const status = error.status >= 400 && error.status < 500 ? error.status : 500; // e.g. a malformed %-encoding is the client's
+    res.status(status).type('text/plain').send(status === 500 ? 'Erreur interne. Réessayez dans un instant.' : 'Requête invalide.');
   });
 
   return { app, storage, catalogue, images, desk, receiver, content };

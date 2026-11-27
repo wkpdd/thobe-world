@@ -12,7 +12,7 @@ const ICONS = {
 export const icon = (name) => raw(ICONS[name]);
 
 /** The page around every view. */
-export function layout(ctx, { title, description, body, canonical, image, jsonLd, pageScripts = [], bodyClass = '', noindex = false, pixelEvents = [] }) {
+export function layout(ctx, { title, description, body, canonical, image, jsonLd, pageScripts = [], bodyClass = '', noindex = false, pixelEvents = [], pixels: withPixels = true }) {
   const { lang, config, assets, catalogue, path } = ctx;
   const s = t(lang);
   const shop = config.shop;
@@ -26,7 +26,9 @@ export function layout(ctx, { title, description, body, canonical, image, jsonLd
   const switchHref = `${path}${path.includes('?') ? '&' : '?'}lang=${other}`;
   // The dashboard's « Publicité » IDs, or cPanel's (META_PIXEL_ID, …) for any left empty there.
   const px = ctx.pixels ?? { meta: { id: config.pixels.meta }, tiktok: { id: config.pixels.tiktok }, ga: { id: config.pixels.ga }, ads: { id: '', label: '' } };
-  const pixels = { meta: px.meta.id, tiktok: px.tiktok.id, ga: px.ga.id, ads: px.ads.id, adsLabel: px.ads.label };
+  const pixels = withPixels ? { meta: px.meta.id, tiktok: px.tiktok.id, ga: px.ga.id, ads: px.ads.id, adsLabel: px.ads.label } : {};
+  // IDs are checked before they are stored; escaped here all the same, as they go inside <script>.
+  const js = (value) => JSON.stringify(String(value)).replace(/</gu, '\\u003c');
   const gtagId = pixels.ga || pixels.ads;
 
   return html`<!doctype html>
@@ -54,9 +56,9 @@ ${noindex ? raw('<meta name="robots" content="noindex">') : ''}
 <link rel="stylesheet" href="${assets.url('fonts/fonts.css')}">
 <link rel="stylesheet" href="${assets.url('css/site.css')}">
 ${jsonLd ? html`<script type="application/ld+json">${jsonForScript(jsonLd)}</script>` : ''}
-${pixels.meta ? raw(`<script>!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init',${JSON.stringify(pixels.meta)});fbq('track','PageView');</script>`) : ''}
-${pixels.tiktok ? raw(`<script>!function(w,d,t){w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=["page","track","identify","instances","debug","on","off","once","ready","alias","group","enableCookie","disableCookie"],ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);ttq.load=function(e){var i="https://analytics.tiktok.com/i18n/pixel/events.js";ttq._i=ttq._i||{},ttq._i[e]=[],ttq._i[e]._u=i,ttq._t=ttq._t||{},ttq._t[e]=+new Date,ttq._o=ttq._o||{};var o=document.createElement("script");o.type="text/javascript",o.async=!0,o.src=i+"?sdkid="+e+"&lib="+t;var a=document.getElementsByTagName("script")[0];a.parentNode.insertBefore(o,a)};ttq.load(${JSON.stringify(pixels.tiktok)});ttq.page();}(window,document,'ttq');</script>`) : ''}
-${gtagId ? raw(`<script async src="https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(gtagId)}"></script><script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());${[pixels.ga, pixels.ads].filter(Boolean).map((id) => `gtag('config',${JSON.stringify(id)});`).join('')}</script>`) : ''}
+${pixels.meta ? raw(`<script>!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init',${js(pixels.meta)});fbq('track','PageView');</script>`) : ''}
+${pixels.tiktok ? raw(`<script>!function(w,d,t){w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=["page","track","identify","instances","debug","on","off","once","ready","alias","group","enableCookie","disableCookie"],ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);ttq.load=function(e){var i="https://analytics.tiktok.com/i18n/pixel/events.js";ttq._i=ttq._i||{},ttq._i[e]=[],ttq._i[e]._u=i,ttq._t=ttq._t||{},ttq._t[e]=+new Date,ttq._o=ttq._o||{};var o=document.createElement("script");o.type="text/javascript",o.async=!0,o.src=i+"?sdkid="+e+"&lib="+t;var a=document.getElementsByTagName("script")[0];a.parentNode.insertBefore(o,a)};ttq.load(${js(pixels.tiktok)});ttq.page();}(window,document,'ttq');</script>`) : ''}
+${gtagId ? raw(`<script async src="https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(gtagId)}"></script><script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());${[pixels.ga, pixels.ads].filter(Boolean).map((id) => `gtag('config',${js(id)});`).join('')}</script>`) : ''}
 </head>
 <body class="${bodyClass}">
 <a class="skip" href="#main">${lang === 'fr' ? 'Aller au contenu' : 'انتقل إلى المحتوى'}</a>

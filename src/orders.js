@@ -10,6 +10,7 @@
  */
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { deliveryFeeFor } from '@h47io/sync-receiver';
+import { WindowCounter } from './client-ip.js';
 
 /** "+213 661-23 45 67" → "0661234567"; null when it is not an Algerian mobile number. */
 export function normalizePhone(input) {
@@ -71,21 +72,14 @@ export class OrderDesk {
     this.secret = secret;
     this.limits = limits;
     this.now = now;
-    this.hits = new Map();
+    this.hits = new WindowCounter({ windowMs: limits.perIpWindowMin * 60_000, max: limits.perIpMax, now: () => now().getTime() });
   }
 
-  /** Sliding window per device (IP). True when it may still order. */
+  /** Sliding window per device. True when it may still order. Unknown device (null): not limited here. */
   allow(ip) {
-    const windowMs = this.limits.perIpWindowMin * 60_000;
-    const at = this.now().getTime();
-    const recent = (this.hits.get(ip) ?? []).filter((t) => at - t < windowMs);
-    if (recent.length >= this.limits.perIpMax) {
-      this.hits.set(ip, recent);
-      return false;
-    }
-    recent.push(at);
-    this.hits.set(ip, recent);
-    if (this.hits.size > 5000) this.hits.clear();
+    if (!ip) return true;
+    if (this.hits.full(ip)) return false;
+    this.hits.hit(ip);
     return true;
   }
 

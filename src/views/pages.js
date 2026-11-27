@@ -196,14 +196,14 @@ export function thanksPage(ctx, summary, { duplicate = false } = {}) {
   });
 }
 
-export function trackPage(ctx, { reference = '', phone = '', summary = null, searched = false }) {
+export function trackPage(ctx, { reference = '', phone = '', summary = null, searched = false, limited = false }) {
   const { lang } = ctx;
   const s = t(lang);
   const parcel = summary?.parcel;
   const body = html`<div class="wrap narrow">
   ${crumbs([{ href: '/', label: s.home }, { label: s.trackTitle }])}
   <h1 class="page-title">${s.trackTitle}</h1>
-  <form class="panel f" method="get" action="/suivi">
+  <form class="panel f" method="post" action="/suivi">
     <p class="muted">${s.trackSub}</p>
     <div class="two">
       <label class="fld">${s.orderRef}<input class="in" name="ref" value="${reference}" dir="ltr" required placeholder="WEB-123"></label>
@@ -211,7 +211,7 @@ export function trackPage(ctx, { reference = '', phone = '', summary = null, sea
     </div>
     <button class="btn btn-ink" type="submit">${s.trackButton}</button>
   </form>
-  ${searched && !summary ? html`<p class="form-error show" style="margin-top:14px" role="alert">${s.trackNotFound}</p>` : ''}
+  ${limited ? html`<p class="form-error show" style="margin-top:14px" role="alert">${s.errors.rate}</p>` : searched && !summary ? html`<p class="form-error show" style="margin-top:14px" role="alert">${s.trackNotFound}</p>` : ''}
   ${summary ? html`<div class="panel status" style="margin-top:14px" data-track-result>
     <div class="row"><span>${s.orderRef}</span><b dir="ltr">${summary.orderGroup}</b></div>
     <div class="row"><span>${s.orderStatus}</span><span class="pill" data-order-status="${summary.status}">${s.statuses[summary.status] ?? summary.status}</span></div>
@@ -223,7 +223,8 @@ export function trackPage(ctx, { reference = '', phone = '', summary = null, sea
     ${orderLines(summary, lang)}${parcel?.amount_due ? '' : totals(summary, lang)}
   </div>` : ''}
 </div>`;
-  return layout(ctx, { title: s.trackTitle, body, noindex: true, canonical: '/suivi' });
+  // No ad pixels here: they would report an address that can carry the customer's phone number.
+  return layout(ctx, { title: s.trackTitle, body, noindex: true, canonical: '/suivi', pixels: false });
 }
 
 export function staticPage(ctx, slug) {

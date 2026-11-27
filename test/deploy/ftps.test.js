@@ -64,7 +64,8 @@ test('FTPS by IP address: the certificate name is asked for, then used', { skip:
     }
     assert.equal(first.ok, false);
     assert.match(first.message, /certificate is for server1\.host\.test, \*\.host\.test, not for « 127\.0\.0\.1 »/u);
-    assert.match(first.message, /FTP_TLS_SERVERNAME=server1\.host\.test/u);
+    assert.doesNotMatch(first.message, /FTP_TLS_SERVERNAME=server1/u, 'never a ready-made line from a certificate that could be an attacker\'s');
+    assert.match(first.message, /FTP_TLS_SERVERNAME=<that server name>/u);
 
     const second = tryFtp(join(dir, 'ca.pem'), { ...base, tlsServername: 'server1.host.test' });
     assert.deepEqual(second, { ok: true, read: 'release-ftps\n' });

@@ -44,7 +44,7 @@ test('2. a customer orders 2 × Qamis Sultan Blanc 54 from the landing page, Yal
   await expect(page.locator('[data-sum-ship]')).toContainText('250');
   await expect(page.locator('[data-sum-total]')).toContainText('14 050');
   await page.locator('[data-submit]').click();
-  await page.waitForURL(/\/merci\/WEB-\d+\?t=/u);
+  await page.waitForURL(/\/merci\/WEB-\d+$/u); // no token in the address (pixels see it)
   await expect(page.locator('h1')).toContainText('شكراً لك');
   reference = (await page.locator('[data-order-ref]').textContent()).trim();
   await expect(page.locator('.panel')).toContainText('14 050');

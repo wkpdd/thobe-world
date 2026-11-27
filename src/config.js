@@ -34,8 +34,11 @@ export function loadConfig(overrides = {}) {
     dataDir: resolve(env.DATA_DIR ?? './data'),
     /** The key typed in H47 Pay « Mon site web ». Empty: the sync endpoint answers « non configuré ». */
     syncKey: env.NEWSTORE_SYNC_KEY ?? '',
-    /** Signs the « merci » links so an order summary is only shown to the person who placed it. */
-    secret: env.APP_SECRET ?? env.NEWSTORE_SYNC_KEY ?? 'dev-secret-change-me',
+    /**
+     * Signs the « merci » links and the dashboard session. 32 characters or more;
+     * otherwise createApp() uses a random one kept in DATA_DIR (never the sync key).
+     */
+    secret: env.APP_SECRET || '',
     shop: {
       nameAr: env.SHOP_NAME_AR ?? 'عالم الثوب',
       nameFr: env.SHOP_NAME_FR ?? 'Thobe World',
@@ -66,7 +69,8 @@ export function loadConfig(overrides = {}) {
       perIpMax: Number(env.ORDER_IP_MAX ?? 6),
       duplicateWindowMin: Number(env.ORDER_DUPLICATE_WINDOW_MIN ?? 30),
     },
-    trustProxy: env.TRUST_PROXY ?? 'loopback',
+    // A number means « trust that many proxies »; Express reads the string '1' as an address.
+    trustProxy: /^\d+$/u.test(env.TRUST_PROXY ?? '') ? Number(env.TRUST_PROXY) : env.TRUST_PROXY ?? 'loopback',
     /** The website dashboard (/admin): carousel and exclusive launches. Empty password: the dashboard stays closed. */
     admin: {
       user: env.ADMIN_USER ?? 'admin',

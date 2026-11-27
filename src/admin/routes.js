@@ -3,6 +3,7 @@ import express from 'express';
 import { storeUpload, mediaSet } from '../images.js';
 import { AdminAuth } from './auth.js';
 import { parseAlgiers } from '../content.js';
+import { clientIp } from '../client-ip.js';
 import { launchForm, launchesPage, loginPage, slideForm, slidesPage, subscribersCsv, subscribersPage, trackingPage } from './views.js';
 
 export function adminRouter({ config, content, catalogue, assets, images }) {
@@ -11,6 +12,8 @@ export function adminRouter({ config, content, catalogue, assets, images }) {
     password: config.admin.password,
     secret: config.secret,
     secure: config.siteUrl.startsWith('https://'),
+    generation: () => content.adminGeneration(),
+    revoke: () => content.revokeAdminSessions(),
   });
   const siteHost = new URL(config.siteUrl).host;
   const router = express.Router();
@@ -22,7 +25,15 @@ export function adminRouter({ config, content, catalogue, assets, images }) {
     res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; frame-ancestors 'none'; form-action 'self'");
     res.type('html').send(String(view));
   };
-  const flash = (req) => ({ notice: typeof req.query.ok === 'string' ? req.query.ok.slice(0, 120) : '' });
+  // Only these messages: a link cannot make the dashboard display text of its own.
+  const NOTICES = {
+    'slide-saved': 'Diapositive enregistrée.',
+    'slide-deleted': 'Diapositive supprimée.',
+    'launch-saved': 'Lancement enregistré.',
+    'launch-deleted': 'Lancement supprimé.',
+    'pixels-saved': 'Pixels enregistrés : actifs sur le site dès maintenant.',
+  };
+  const flash = (req) => ({ notice: NOTICES[req.query.ok] ?? '' });
 
   // Every POST must come from a page of this site (on top of the SameSite cookie).
   router.use((req, res, next) => {
@@ -40,7 +51,7 @@ export function adminRouter({ config, content, catalogue, assets, images }) {
 
   router.get('/login', (_req, res) => send(res, loginPage({ assets, closed: !auth.enabled })));
   router.post('/login', form, (req, res) => {
-    const ip = req.ip ?? 'unknown';
+    const ip = clientIp(req);
     if (!auth.enabled) return send(res, loginPage({ assets, closed: true }), 403);
     if (auth.locked(ip)) return send(res, loginPage({ assets, error: 'Trop de tentatives. Réessayez dans 15 minutes.' }), 429);
     const cookie = auth.login(ip, req.body?.user, req.body?.password);
@@ -49,7 +60,7 @@ export function adminRouter({ config, content, catalogue, assets, images }) {
     return res.redirect(303, '/admin/carrousel');
   });
   router.post('/logout', (_req, res) => {
-    res.setHeader('Set-Cookie', auth.logoutCookie());
+    res.setHeader('Set-Cookie', auth.logout());
     res.redirect(303, '/admin/login');
   });
 
@@ -81,7 +92,7 @@ export function adminRouter({ config, content, catalogue, assets, images }) {
   const saveSlide = (req, res) => {
     const result = content.saveSlide(req.body ?? {}, req.params.id ?? null);
     if (!result.ok) return send(res, slideForm({ assets, slide: { ...req.body, id: req.params.id, startsAt: parseAlgiers(req.body?.startsAt), endsAt: parseAlgiers(req.body?.endsAt), active: Boolean(req.body?.active) }, catalogue, launches: allLaunches(), error: result.error }), 422);
-    return res.redirect(303, `/admin/carrousel?ok=${encodeURIComponent('Diapositive enregistrée.')}`);
+    return res.redirect(303, `/admin/carrousel?ok=slide-saved`);
   };
   router.post('/carrousel', form, saveSlide);
   router.post('/carrousel/:id', form, saveSlide);
@@ -95,7 +106,7 @@ export function adminRouter({ config, content, catalogue, assets, images }) {
   });
   router.post('/carrousel/:id/supprimer', (req, res) => {
     content.deleteSlide(req.params.id);
-    res.redirect(303, `/admin/carrousel?ok=${encodeURIComponent('Diapositive supprimée.')}`);
+    res.redirect(303, `/admin/carrousel?ok=slide-deleted`);
   });
 
   // ---- Launches ------------------------------------------------------------------
@@ -112,13 +123,13 @@ export function adminRouter({ config, content, catalogue, assets, images }) {
       const products = Array.isArray(body.products) ? body.products : body.products ? [body.products] : [];
       return send(res, launchForm({ assets, launch: { ...body, id: req.params.id, products, launchAt: parseAlgiers(body.launchAt), active: Boolean(body.active), featured: Boolean(body.featured), limited: Boolean(body.limited) }, catalogue, error: result.error }), 422);
     }
-    return res.redirect(303, `/admin/lancements?ok=${encodeURIComponent('Lancement enregistré.')}`);
+    return res.redirect(303, `/admin/lancements?ok=launch-saved`);
   };
   router.post('/lancements', form, saveLaunch);
   router.post('/lancements/:id', form, saveLaunch);
   router.post('/lancements/:id/supprimer', (req, res) => {
     content.deleteLaunch(req.params.id);
-    res.redirect(303, `/admin/lancements?ok=${encodeURIComponent('Lancement supprimé.')}`);
+    res.redirect(303, `/admin/lancements?ok=launch-deleted`);
   });
   router.get('/lancements/:id/inscrits', (req, res, next) => {
     const launch = content.launch(req.params.id);
@@ -138,7 +149,7 @@ export function adminRouter({ config, content, catalogue, assets, images }) {
   router.post('/publicite', express.urlencoded({ extended: false, limit: '256kb' }), (req, res) => {
     const result = content.saveTracking(req.body ?? {});
     if (!result.ok) return send(res, trackingPage({ assets, tracking: result.tracking, pixels: content.pixels(config.pixels), errors: result.errors }), 422);
-    return res.redirect(303, `/admin/publicite?ok=${encodeURIComponent('Pixels enregistrés : actifs sur le site dès maintenant.')}`);
+    return res.redirect(303, `/admin/publicite?ok=pixels-saved`);
   });
 
   return router;
